@@ -6,7 +6,7 @@ import time
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
-import psycopg2  # 🔌 Conector profesional para Supabase
+import pg8000
 
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
@@ -29,11 +29,18 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# Conexión automática con la URL que pusiste en Render
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Conexión directa y fija con tus credenciales reales de Supabase
+def get_db_connection():
+    return pg8000.connect(
+        user="postgres",
+        password="AdamFadlaneLara2021*",
+        host="db.csagfnnecsfilqlftkfa.supabase.co",
+        port=5432,
+        database="postgres"
+    )
 
 def init_db():
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -58,7 +65,7 @@ def init_db():
 init_db()
 
 def verificar_registro(user_id):
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT alias_elegido, creditos, rango FROM usuarios WHERE id = %s', (user_id,))
     result = cursor.fetchone()
@@ -67,7 +74,7 @@ def verificar_registro(user_id):
     return result
 
 def comprobar_alias_existe(alias):
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT id FROM usuarios WHERE alias_elegido = %s', (alias.lower(),))
     result = cursor.fetchone()
@@ -76,7 +83,7 @@ def comprobar_alias_existe(alias):
     return result is not None
 
 def registrar_usuario_manual(user_id, alias, tg_username):
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('INSERT INTO usuarios (id, alias_elegido, telegram_username, creditos) VALUES (%s, %s, %s, 10) ON CONFLICT (id) DO NOTHING', 
                    (user_id, alias.lower(), tg_username))
@@ -85,16 +92,16 @@ def registrar_usuario_manual(user_id, alias, tg_username):
     conn.close()
 
 def get_user_credits(user_id):
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT creditos FROM usuarios WHERE id = %s', (user_id,))
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result[0] if result else 0
+    return result if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('UPDATE usuarios SET creditos = %s WHERE id = %s', (nuevos_creditos, user_id))
     conn.commit()
@@ -102,7 +109,7 @@ def update_user_credits(user_id, nuevos_creditos):
     conn.close()
 
 def db_guardar_key(codigo, cantidad):
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('INSERT INTO keys (key_code, creditos_valor) VALUES (%s, %s)', (codigo, cantidad))
     conn.commit()
@@ -110,16 +117,16 @@ def db_guardar_key(codigo, cantidad):
     conn.close()
 
 def db_reclamar_key(codigo):
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('SELECT creditos_valor, estado FROM keys WHERE key_code = %s', (codigo,))
     result = cursor.fetchone()
-    if result and result[1] == 'Disponible':
+    if result and result == 'Disponible':
         cursor.execute('UPDATE keys SET estado = \'Reclamada\' WHERE key_code = %s', (codigo,))
         conn.commit()
         cursor.close()
         conn.close()
-        return result[0]
+        return result
     cursor.close()
     conn.close()
     return None
@@ -137,8 +144,8 @@ def check_user_access(message, cost=1):
     if not datos_usuario:
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
-    alias = datos_usuario[0]
-    creditos = datos_usuario[1]
+    alias = datos_usuario
+    creditos = datos_usuario
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
