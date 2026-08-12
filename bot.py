@@ -2,12 +2,15 @@ import os
 import re
 import random
 import sys
+import time
 import telebot
 import requests
 
+# 1. Configuración del Token seguro
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
 
+# 2. Algoritmo matemático para validar tarjetas (Luhn)
 def luhn_check(card_number):
     total = 0
     reverse_digits = card_number[::-1]
@@ -20,7 +23,7 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# --- COMANDO: /start (BIENVENIDA) ---
+# 3. Comando de Bienvenida (/start)
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = f"""<b>👋 ¡Hola, @{message.from_user.username or 'Usuario'}! Bienvenido a tu CC Checker Bot</b>
@@ -32,7 +35,7 @@ Aquí tienes la lista de comandos disponibles:
 <i>Bot alojado con éxito las 24/7 en la nube. 🚀</i>"""
     bot.reply_to(message, welcome_text, parse_mode="HTML")
 
-# --- COMANDO: /gen (GENERADOR DE TARJETAS) ---
+# 4. Comando Generador de Tarjetas (/gen)
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
     try:
@@ -76,7 +79,7 @@ def generate_cards(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error al generar: {str(e)}")
 
-# --- COMANDO PRINCIPAL: /chk (VERIFICADOR) ---
+# 5. Comando Verificador de Tarjetas (/chk)
 @bot.message_handler(regexp=r'(?i)^[!/]chk')
 def check_card(message):
     try:
@@ -97,7 +100,7 @@ def check_card(message):
         bank_name, country_name, card_type, brand = "Desconocido", "Desconocido", "Desconocido", "Desconocida"
 
         try:
-            # API de BINS corregida con su ruta completa estable
+            # API de BINS rápida y estable
             response_api = requests.get(f"https://payout.com{bin_number}")
             if response_api.status_code == 200:
                 data = response_api.json()
@@ -124,17 +127,20 @@ def check_card(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
-# --- BLOQUE FINAL DE ARRANQUE PARA PLAN GRATUITO EN RENDER ---
-try:
-    print("Limpiando webhooks y sesiones previas...")
-    bot.delete_webhook()
-    print("Bot encendido correctamente en el plan gratuito.")
-    bot.infinity_polling(skip_pending=True)
-except telebot.apihelper.ApiTelegramException as e:
-    if e.error_code == 409:
-        print("⚠️ Conflicto 409 detectado. Apagando proceso antiguo automáticamente...")
-        sys.exit(1)
-    else:
-        print(f"Error de Telegram: {e}")
-except Exception as e:
-    print(f"Error general: {e}")
+# 6. Bucle de arranque seguro anti-conflictos (Evita el cartel de Failed)
+while True:
+    try:
+        print("Limpiando webhooks y sesiones previas...")
+        bot.delete_webhook()
+        print("Bot encendido correctamente en el plan gratuito y listo para usar.")
+        bot.infinity_polling(skip_pending=True)
+    except telebot.apihelper.ApiTelegramException as e:
+        if e.error_code == 409:
+            print("⚠️ Conflicto 409 detectado (Bot duplicado). Esperando 10 segundos en silencio...")
+            time.sleep(10)  # Pausa pacífica para que Render apague el bot viejo de fondo
+        else:
+            print(f"Error de Telegram: {e}")
+            time.sleep(5)
+    except Exception as e:
+        print(f"Error general: {e}")
+        time.sleep(5)
