@@ -189,8 +189,8 @@ def add_credits_admin(message):
         if not datos_cliente:
             bot.reply_to(message, "❌ Este usuario no está registrado.")
             return
-        alias = datos_cliente[0]
-        creditos_viejos = datos_cliente[1]
+        alias = datos_cliente
+        creditos_viejos = datos_cliente
         nuevos_creditos = creditos_viejos + cantidad
         update_user_credits(target_id, nuevos_creditos)
         bot.reply_to(message, f"🪙 Inyección Exitosa\n─────────────────────\n👤 Usuario: {alias}\n Recargados: +{cantidad} créditos.\n🪙 Total actual: {nuevos_creditos} monedas.")
