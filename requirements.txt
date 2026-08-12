@@ -1,4 +1,2 @@
-
 pyTelegramBotAPI
-requests
-postgresql://postgres:AdamFadlaneLara2021*@db.csagfnnecsfilqlftkfa.supabase.co:5432/postgres
+pg8000
