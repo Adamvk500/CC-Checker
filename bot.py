@@ -3,6 +3,7 @@ import re
 import random
 import sys
 import time
+import ssl  # 🔐 Nueva librería nativa para forzar el SNI de seguridad de Supabase
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
@@ -29,14 +30,16 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
+# 🔐 CORREGIDO: Activación de ssl_context para inyectar obligatoriamente el SNI hostname
 def get_db_connection():
+    contexto_ssl = ssl.create_default_context()
     return pg8000.connect(
-        user="postgres",
+        user="postgres.csagfnnecsfilqlftkfa",  # El formato de usuario combinado oficial para identificar tu tenant
         password="AdamFadlaneLara2021*",
-        host="aws-0-eu-west-1.pooler.supabase.com",
+        host="://supabase.com",
         port=6543,
         database="postgres",
-        application_name="csagfnnecsfilqlftkfa"
+        ssl_context=contexto_ssl  # Le dice a pg8000 que firme la conexión cifrada con el SNI
     )
 
 def init_db():
@@ -351,4 +354,3 @@ while True:
     except Exception as e:
         print(f"Error general: {e}")
         time.sleep(5)
-
