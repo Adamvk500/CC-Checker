@@ -212,18 +212,23 @@ def claim_key_user(message):
         return
 
     if len(args) < 2:
-        bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
+        bot.reply_to(message, "✏️ Uso: <code>/claim ADAM-CODIGO</code>", parse_mode="HTML")
         return
 
+    # CORREGIDO: Seleccionar la posición [1] para leer solo la llave e ignorar la palabra /claim
     key_solicitada = args[1].upper()
     creditos_ganados = db_reclamar_key(key_solicitada)
     
     if creditos_ganados:
-        alias, creditos_viejos, rango = verificar_registro(user_id)
-        nuevos_creditos = creditos_viejos + creditos_ganados[0]
+        datos = verificar_registro(user_id)
+        alias = datos[0]
+        creditos_viejos = datos[1]
+        # Extraer el valor numérico puro de la respuesta de la base de datos
+        valor_key = creditos_ganados[0]
+        nuevos_creditos = creditos_viejos + valor_key
         update_user_credits(user_id, nuevos_creditos)
         
-        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{creditos_ganados[0]}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
+        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{valor_key}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
         bot.reply_to(message, texto_exito, parse_mode="HTML")
     else:
         bot.reply_to(message, "❌ Código inválido o ya utilizado.")
@@ -243,14 +248,18 @@ def show_credits(message):
     if not datos:
         bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
         return
-    alias, creditos, rango = datos
+    alias = datos[0]
+    creditos = datos[1]
+    rango = datos[2]
     bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        alias, creditos, rango = datos
+        alias = datos[0]
+        creditos = datos[1]
+        rango = datos[2]
         welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN\n🔑 Recargar: /claim CODIGO"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
@@ -323,7 +332,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
+        cc, mes, ano, cvv = cards, cards, cards, cards
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
