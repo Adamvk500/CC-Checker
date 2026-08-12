@@ -4,6 +4,7 @@ import random
 import sys
 import time
 import sqlite3
+import string
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
@@ -34,6 +35,7 @@ DB_FILE = "usuarios.db"
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    # Tabla de usuarios de la Fase anterior
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY,
@@ -41,6 +43,14 @@ def init_db():
             telegram_username TEXT,
             creditos INTEGER DEFAULT 0,
             rango TEXT DEFAULT 'Gratis'
+        )
+    ''')
+    # NUEVA: Tabla para almacenar los codigos de saldo recargables
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS keys (
+            key_code TEXT PRIMARY KEY,
+            creditos_valor INTEGER,
+            estado TEXT DEFAULT 'Disponible'
         )
     ''')
     conn.commit()
@@ -86,6 +96,27 @@ def update_user_credits(user_id, nuevos_creditos):
     conn.commit()
     conn.close()
 
+# Funciones de base de datos exclusivas para el sistema de llaves de pago
+def db_guardar_key(codigo, cantidad):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO keys (key_code, creditos_valor) VALUES (?, ?)', (codigo, cantidad))
+    conn.commit()
+    conn.close()
+
+def db_reclamar_key(codigo):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT creditos_valor, estado FROM keys WHERE key_code = ?', (codigo,))
+    result = cursor.fetchone()
+    if result and result[1] == 'Disponible':
+        cursor.execute('UPDATE keys SET estado = "Reclamada" WHERE key_code = ?', (codigo,))
+        conn.commit()
+        conn.close()
+        return result[0] # Retorna el numero de creditos que vale la key
+    conn.close()
+    return None
+
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
@@ -122,6 +153,67 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+# --- COMANDO EXCLUSIVO: /keygen CANTIDAD (Solo tu ID de Telegram puede crearlas) ---
+@bot.message_handler(commands=['keygen'])
+def generate_key_admin(message):
+    user_id = message.from_user.id
+    args = message.text.split()
+    
+    # 🕵️ Filtro de seguridad para que solo tu cuenta de Telegram use este comando
+    if str(user_id) != "8661836260" and message.from_user.username != "Adam_vk_500":
+        bot.reply_to(message, "❌ No tienes permisos de administrador para generar codigos de venta.")
+        return
+
+    if len(args) < 2:
+        bot.reply_to(message, "✏️ Uso: <code>/keygen cantidad_de_creditos</code>", parse_mode="HTML")
+        return
+
+    try:
+        cantidad = int(args[1])
+        # Generar un codigo aleatorio seguro de 12 letras y numeros
+        chars = string.ascii_uppercase + string.digits
+        codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
+        
+        db_guardar_key(codigo_random, cantidad)
+        
+        texto_admin = f"""<b>🔑 KEY GENERADA CON ÉXITO</b>
+─────────────────────
+<b>Código:</b> <code>{codigo_random}</code>
+<b>Valor:</b> <code>{cantidad}</code> créditos 🪙
+─────────────────────
+<i>Puedes poner este código a la venta. El usuario que lo use recibirá los créditos al instante.</i>"""
+        bot.reply_to(message, texto_admin, parse_mode="HTML")
+    except ValueError:
+        bot.reply_to(message, "❌ Por favor, introduce un numero valido de creditos.")
+
+# --- COMANDO PÚBLICO: /claim CODIGO (Para que tus compradores recargen saldo) ---
+@bot.message_handler(commands=['claim'])
+def claim_key_user(message):
+    user_id = message.from_user.id
+    args = message.text.split()
+    
+    datos = verificar_registro(user_id)
+    if not datos:
+        bot.reply_to(message, "⚠️ Debes registrarte primero usando <code>/register tu_nombre</code>", parse_mode="HTML")
+        return
+
+    if len(args) < 2:
+        bot.reply_to(message, "✏️ Uso: <code>/claim ADAM-CODIGO_SECRETO</code>", parse_mode="HTML")
+        return
+
+    key_solicitada = args[1].upper()
+    creditos_ganados = db_reclamar_key(key_solicitada)
+
+    if creditos_ganados:
+        alias, creditos_viejos, rango = datos
+        nuevos_creditos = creditos_viejos + creditos_ganados
+        update_user_credits(user_id, nuevos_creditos)
+        
+        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{creditos_ganados}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
+        bot.reply_to(message, texto_exito, parse_mode="HTML")
+    else:
+        bot.reply_to(message, "❌ <b>Código inválido o ya utilizado.</b>\nVerifica que esté bien escrito o contacta al administrador.")
+
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
@@ -131,17 +223,13 @@ def register_user(message):
     if verificar_registro(user_id):
         bot.reply_to(message, "❌ Ya estas registrado.")
         return
-        
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
-        
     alias_deseado = args[1]
-    
     if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
         return
-
     if comprobar_alias_existe(alias_deseado):
         bot.reply_to(message, "⚠️ Ese nombre ya esta ocupado.")
         return
@@ -156,15 +244,12 @@ def add_credits_admin(message):
         if len(args) < 2 or not message.reply_to_message:
             bot.reply_to(message, "✏️ Responde al mensaje de alguien y escribe: /add cantidad")
             return
-            
         amount = int(args[-1])
         target_id = message.reply_to_message.from_user.id
-        
         datos = verificar_registro(target_id)
         if not datos:
             bot.reply_to(message, "❌ El usuario no esta registrado.")
             return
-            
         nuevos_creditos = datos[1] + amount
         update_user_credits(target_id, nuevos_creditos)
         bot.reply_to(message, f"🪙 Añadidos {amount} creditos.")
@@ -183,7 +268,7 @@ def show_credits(message):
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        welcome_text = f"👋 Hola de nuevo, {datos[0]}!\n\nSaldo: {datos[1]} creditos | Rango: {datos[2]}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN"
+        welcome_text = f"👋 Hola de nuevo, {datos[0]}!\n\nSaldo: {datos[1]} creditos | Rango: {datos[2]}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN\n🔑 Recargar: /claim CODIGO"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
     bot.reply_to(message, welcome_text)
@@ -197,12 +282,10 @@ def generate_cards(message):
         if not bin_match:
             bot.reply_to(message, "❌ Uso correcto: /gen 400022")
             return
-        
         bin_number = "".join(bin_match)[:6]
         if len(bin_number) < 6:
             bot.reply_to(message, "⚠️ El BIN debe tener al menos 6 digitos.")
             return
-
         bin_base = bin_number
         generated_list = []
         while len(generated_list) < 10:
@@ -216,9 +299,8 @@ def generate_cards(message):
                     cvv = str(random.randint(100, 999))
                     generated_list.append(f"{test_cc}|{mes}|{ano}|{cvv}")
                     break
-
         cards_output = "\n".join(generated_list)
-        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)[0]} creditos."
+        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)} creditos."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error al generar: {str(e)}")
@@ -232,10 +314,8 @@ def check_bin_standalone(message):
         if not bin_match:
             bot.reply_to(message, "❌ Uso correcto: /bin 400022")
             return
-        
         bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
-        
         if bin_number in LOCAL_BINS:
             bin_data = LOCAL_BINS[bin_number]
             brand = bin_data["brand"]
@@ -246,8 +326,7 @@ def check_bin_standalone(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-
-        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0]}."
+        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)}."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
@@ -261,12 +340,9 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-            
-        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
-
+        cc, mes, ano, cvv = cards, cards, cards, cards
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
-
         bin_number = cc[:6]
         if bin_number in LOCAL_BINS:
             bin_data = LOCAL_BINS[bin_number]
@@ -278,8 +354,7 @@ def check_card(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-
-        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0]}"
+        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)}"
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
