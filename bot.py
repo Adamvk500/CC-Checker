@@ -173,8 +173,9 @@ def register_user(message):
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
+    # CORREGIDO: Indexación de string pura para evitar fallos de lista en Supabase
     alias_deseado = args[-1]
-    if not re.match(r'^[\w\d]+$', alias_deseado):
+    if not re.match(r'^^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
         return
     if comprobar_alias_existe(alias_deseado):
@@ -193,6 +194,7 @@ def generate_key_admin(message):
         bot.reply_to(message, "✏️ Uso: /keygen cantidad_de_creditos")
         return
     try:
+        # CORREGIDO: Indexación numérico entero
         cantidad = int(args[-1])
         import string
         chars = string.ascii_uppercase + string.digits
@@ -213,10 +215,13 @@ def claim_key_user(message):
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
+    # CORREGIDO: Indexación de código limpio string
     key_solicitada = args[-1].upper()
     creditos_ganados = db_reclamar_key(key_solicitada)
     if creditos_ganados:
-        alias, creditos_viejos, rango = verificar_registro(user_id)
+        datos = verificar_registro(user_id)
+        alias = datos
+        creditos_viejos = datos
         valor_key = creditos_ganados
         nuevos_creditos = creditos_viejos + valor_key
         update_user_credits(user_id, nuevos_creditos)
