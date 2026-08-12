@@ -27,6 +27,7 @@ LOCAL_BINS = {
     "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "🇪🇸"},
     "541275": {"brand": "Mastercard", "type": "Credit", "bank": "CITIBANK", "country": "United States", "flag": "🇺🇸"},
     "400000": {"brand": "Visa", "type": "Debit", "bank": "SANTANDER RIO", "country": "Argentina", "flag": "🇦🇷"},
+    "522205": {"brand": "Mastercard", "type": "Credit", "bank": "NOMBRE DEL BANCO", "country": "Tu País", "flag": "🇨🇴"},
 }
 
 def luhn_check(card_number):
