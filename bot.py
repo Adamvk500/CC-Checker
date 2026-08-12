@@ -157,7 +157,7 @@ def delete_user_admin(message):
 
     # Si respondes al mensaje de alguien, borra a ese usuario
     if message.reply_to_message:
-        target_id = message.reply_to_message.from_user.id
+        target_id = message.from_user.id
         datos_cliente = verificar_registro(target_id)
         if not datos_cliente:
             bot.reply_to(message, "❌ Este usuario ni siquiera está registrado.")
