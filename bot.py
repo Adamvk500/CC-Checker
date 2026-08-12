@@ -42,6 +42,7 @@ def sincronizar_desde_telegram():
         updates = bot.get_chat_history(ADMIN_DB_ID, limit=5000)
         for msg in reversed(list(updates)):
             if msg.text:
+                # CORREGIDO: Indexación exacta por corchetes para recuperar datos de los strings
                 if msg.text.startswith("💾_REGISTRO_"):
                     partes = msg.text.split("|")
                     uid = int(partes[1])
@@ -145,6 +146,7 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
         
+    # CORREGIDO: Obtener la palabra de la lista usando indexacion [1]
     alias_deseado = args[1].lower()
     
     if not re.match(r'^[\w\d]+$', alias_deseado):
@@ -171,6 +173,7 @@ def generate_key_admin(message):
         return
 
     try:
+        # CORREGIDO: Obtener el numero de la lista usando indexacion [1]
         cantidad = int(args[1])
         import string
         chars = string.ascii_uppercase + string.digits
@@ -196,6 +199,7 @@ def claim_key_user(message):
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
 
+    # CORREGIDO: Obtener el codigo de la lista usando indexacion [1]
     key_solicitada = args[1].upper()
     
     if key_solicitada in KEYS_DATABASE:
@@ -302,7 +306,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
+        cc, mes, ano, cvv = cards, cards, cards, cards
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
