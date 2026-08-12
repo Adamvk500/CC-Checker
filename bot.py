@@ -1,8 +1,8 @@
 import os
 import re
 import telebot
+import requests  # Nueva librería para consultar internet
 
-# El bot buscará el token de forma segura en las variables de Render
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
 
@@ -37,16 +37,37 @@ def check_card(message):
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Formato Válido (Luhn Pass)" if is_luhn_valid else "🔴 Formato Inválido (Luhn Fail)"
 
+        # --- NUEVA FUNCIÓN: CONSULTAR INFORMACIÓN DEL BANCO (BIN) ---
+        bin_number = cc[:6]  # Tomamos los primeros 6 dígitos de la tarjeta
+        bank_name = "Desconocido"
+        country_name = "Desconocido"
+        card_type = "Desconocido"
         brand = "Desconocida"
-        if cc.startswith('4'): brand = "Visa"
-        elif cc.startswith(('51', '52', '53', '54', '55')): brand = "Mastercard"
-        elif cc.startswith(('34', '37')): brand = "American Express"
 
-        response = f"""<b>💳 CC Checker Bot v1</b>
+        try:
+            # Consultamos una API pública de BINS
+            response_api = requests.get(f"https://binlist.net{bin_number}", headers={'Accept-Version': '3'})
+            if response_api.status_code == 200:
+                data = response_api.json()
+                brand = data.get("scheme", "Desconocida").capitalize()
+                card_type = data.get("type", "Desconocido").capitalize()
+                bank_name = data.get("bank", {}).get("name", "Desconocido")
+                country_name = data.get("country", {}).get("name", "Desconocido")
+        except:
+            # Si la API falla o no encuentra el BIN, dejamos los valores por defecto
+            if cc.startswith('4'): brand = "Visa"
+            elif cc.startswith(('51', '52', '53', '54', '55')): brand = "Mastercard"
+            elif cc.startswith(('34', '37')): brand = "American Express"
+
+        # Plantilla de respuesta mejorada con los datos del banco
+        response = f"""<b>💳 CC Checker Bot v2</b>
 ──────────────────
 <b>Card:</b> <code>{cc}|{mes}|{ano}|{cvv}</code>
 <b>Estado:</b> {status}
 <b>Franquicia:</b> {brand}
+<b>Tipo:</b> {card_type}
+<b>Banco:</b> {bank_name}
+<b>País:</b> {country_name}
 ──────────────────
 <b>Checked by:</b> @{message.from_user.username or 'Usuario'}"""
 
