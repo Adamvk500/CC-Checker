@@ -20,12 +20,6 @@ Thread(target=run_fake_server, daemon=True).start()
 USER_CREDITS = {}      
 LAST_COMMAND_TIME = {} 
 
-FLAG_EMOJIS = {
-    "United states": "🇺🇸", "Colombia": "🇨🇴", "Mexico": "🇲🇽", "Spain": "🇪🇸", 
-    "Argentina": "🇦🇷", "Peru": "🇵🇪", "Chile": "🇨🇱", "Ecuador": "🇪🇨", 
-    "Venezuela": "🇻🇪", "Brazil": "🇧🇷", "Canada": "🇨🇦", "United kingdom": "🇬🇧"
-}
-
 def luhn_check(card_number):
     total = 0
     reverse_digits = card_number[::-1]
@@ -71,7 +65,7 @@ def add_credits_admin(message):
             bot.reply_to(message, "✏️ Uso: <code>/add @username_o_id cantidad</code>", parse_mode="HTML")
             return
             
-        amount = int(args[2])
+        amount = int(args)
         
         if message.reply_to_message:
             target_id = message.reply_to_message.from_user.id
@@ -153,17 +147,25 @@ def check_bin_standalone(message):
         
         bin_number = bin_match[0][:6]
         bot.send_chat_action(message.chat.id, 'typing')
-        response_api = requests.get(f"https://payout.com{bin_number}")
         
+        # Nueva API pública estable
+        response_api = requests.get(f"https://binlist.net{bin_number}", headers={'Accept-Version': '3'})
+        
+        brand = "Desconocida"
+        card_type = "Desconocido"
+        bank_name = "Desconocido"
+        country_name = "Desconocido"
+        flag = "🏳️‍🌈"
+
         if response_api.status_code == 200:
             data = response_api.json()
-            brand = data.get("brand", "Desconocida").capitalize()
+            brand = data.get("scheme", "Desconocida").capitalize()
             card_type = data.get("type", "Desconocido").capitalize()
-            bank_name = data.get("bank", "Desconocido").upper()
-            country_name = data.get("country_name", "Desconocido")
-            flag = FLAG_EMOJIS.get(country_name, "🏳️‍🌈")
+            bank_name = data.get("bank", {}).get("name", "Desconocido").upper()
+            country_name = data.get("country", {}).get("name", "Desconocido")
+            flag = data.get("country", {}).get("emoji", "🏳️‍🌈")
 
-            response = f"""<b>🔍 Información del BIN [<code>{bin_number}</code>]</b>
+        response = f"""<b>🔍 Información del BIN [<code>{bin_number}</code>]</b>
 ──────────────────
 <b>Franquicia:</b> <code>{brand}</code>
 <b>Tipo:</b> <code>{card_type}</code>
@@ -171,8 +173,6 @@ def check_bin_standalone(message):
 <b>País:</b> {country_name} {flag}
 ──────────────────
 <b>Restante:</b> <code>{USER_CREDITS[message.from_user.id]}</code> 🪙"""
-        else:
-            response = f"❌ No se encontró información para el BIN <code>{bin_number}</code>."
             
         bot.reply_to(message, response, parse_mode="HTML")
     except Exception as e:
@@ -196,17 +196,21 @@ def check_card(message):
         status = "🟢 Formato Válido (Luhn Pass)" if is_luhn_valid else "🔴 Formato Inválido (Luhn Fail)"
 
         bin_number = cc[:6]
-        bank_name, country_name, card_type, brand, flag = "Desconocido", "Desconocido", "Desconocido", "Desconocida", "🏳️‍🌈"
+        brand = "Desconocida"
+        card_type = "Desconocido"
+        bank_name = "Desconocido"
+        country_name = "Desconocido"
+        flag = "🏳️‍🌈"
 
         try:
-            response_api = requests.get(f"https://payout.com{bin_number}")
+            response_api = requests.get(f"https://binlist.net{bin_number}", headers={'Accept-Version': '3'})
             if response_api.status_code == 200:
                 data = response_api.json()
-                brand = data.get("brand", "Desconocida").capitalize()
+                brand = data.get("scheme", "Desconocida").capitalize()
                 card_type = data.get("type", "Desconocido").capitalize()
-                bank_name = data.get("bank", "Desconocido").upper()
-                country_name = data.get("country_name", "Desconocido")
-                flag = FLAG_EMOJIS.get(country_name, "🏳️‍🌈") 
+                bank_name = data.get("bank", {}).get("name", "Desconocido").upper()
+                country_name = data.get("country", {}).get("name", "Desconocido")
+                flag = data.get("country", {}).get("emoji", "🏳️‍🌈")
         except:
             if cc.startswith('4'): brand = "Visa"
             elif cc.startswith(('51', '52', '53', '54', '55')): brand = "Mastercard"
