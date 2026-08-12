@@ -87,7 +87,6 @@ def registrar_usuario_manual(user_id, alias, tg_username):
     cursor.close()
     conn.close()
 
-# NUEVA: Función interna para borrar usuarios de Supabase
 def eliminar_usuario_db(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -145,27 +144,22 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
-# 👑 NUEVO COMANDO: /delete (Elimina tu cuenta o la de un cliente en Reply)
 @bot.message_handler(commands=['delete', 'unregister'])
 def delete_user_admin(message):
     user_id = message.from_user.id
-    
-    # Filtro de Administrador estricto para que nadie más borre datos
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos de dueño para eliminar registros.")
         return
 
-    # Si respondes al mensaje de alguien, borra a ese usuario
     if message.reply_to_message:
-        target_id = message.from_user.id
+        target_id = message.reply_to_message.from_user.id
         datos_cliente = verificar_registro(target_id)
         if not datos_cliente:
             bot.reply_to(message, "❌ Este usuario ni siquiera está registrado.")
             return
         eliminar_usuario_db(target_id)
-        bot.reply_to(message, f"🗑️ Cuenta de <code>{datos_cliente}</code> eliminada de la base de datos en la nube.", parse_mode="HTML")
+        bot.reply_to(message, f"🗑️ Cuenta de <code>{datos_cliente[0]}</code> eliminada de la base de datos.", parse_mode="HTML")
     else:
-        # Si pones el comando suelto, te borra a ti mismo para que puedas hacer pruebas de re-registro
         if verificar_registro(user_id):
             eliminar_usuario_db(user_id)
             bot.reply_to(message, "🗑️ Tu cuenta ha sido eliminada con éxito. Ya puedes volver a usar /register.")
@@ -179,21 +173,26 @@ def add_credits_admin(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos para usar este comando.")
         return
-    if len(args) < 2 or not message.reply_to_message:
-        bot.reply_to(message, "✏️ Uso: Responde al mensaje del cliente y escribe: /add cantidad")
+        
+    if len(args) < 2:
+        bot.reply_to(message, "✏️ Uso: <code>/add cantidad</code> o respondiendo a un mensaje.", parse_mode="HTML")
         return
+        
     try:
         cantidad = int(args[-1])
-        target_id = message.reply_to_message.from_user.id
+        # Si respondes a un mensaje, recarga al objetivo. Si no, te recarga a ti mismo directamente
+        target_id = message.reply_to_message.from_user.id if message.reply_to_message else user_id
+        
         datos_cliente = verificar_registro(target_id)
         if not datos_cliente:
-            bot.reply_to(message, "❌ Este usuario no está registrado.")
+            bot.reply_to(message, "❌ El usuario objetivo no está registrado.")
             return
-        alias = datos_cliente
-        creditos_viejos = datos_cliente
+            
+        alias = datos_cliente[0]
+        creditos_viejos = datos_cliente[1]
         nuevos_creditos = creditos_viejos + cantidad
         update_user_credits(target_id, nuevos_creditos)
-        bot.reply_to(message, f"🪙 Inyección Exitosa\n─────────────────────\n👤 Usuario: {alias}\n Recargados: +{cantidad} créditos.\n🪙 Total actual: {nuevos_creditos} monedas.")
+        bot.reply_to(message, f"🪙 <b>Inyección Exitosa</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{cantidad}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas.", parse_mode="HTML")
     except ValueError:
         bot.reply_to(message, "❌ Introduce una cantidad numérica válida.")
 
@@ -224,18 +223,18 @@ def show_credits(message):
     if not datos:
         bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
         return
-    alias = datos
-    creditos = datos
-    rango = datos
+    alias = datos[0]
+    creditos = datos[1]
+    rango = datos[2]
     bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        alias = datos
-        creditos = datos
-        rango = datos
+        alias = datos[0]
+        creditos = datos[1]
+        rango = datos[2]
         welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
