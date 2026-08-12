@@ -103,7 +103,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result if result else 0
+    return result[0] if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
