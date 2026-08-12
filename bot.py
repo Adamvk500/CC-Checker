@@ -65,7 +65,7 @@ def add_credits_admin(message):
             bot.reply_to(message, "✏️ Uso: <code>/add @username_o_id cantidad</code>", parse_mode="HTML")
             return
             
-        amount = int(args)
+        amount = int(args[2])
         
         if message.reply_to_message:
             target_id = message.reply_to_message.from_user.id
@@ -106,12 +106,12 @@ def generate_cards(message):
             bot.reply_to(message, "❌ <b>Uso correcto:</b> <code>/gen 400022</code>", parse_mode="HTML")
             return
         
-        bin_number = bin_match[0]
+        bin_number = "".join(bin_match)[:6]
         if len(bin_number) < 6:
             bot.reply_to(message, "⚠️ El BIN debe tener al menos 6 dígitos.", parse_mode="HTML")
             return
 
-        bin_base = bin_number[:12]
+        bin_base = bin_number
         generated_list = []
         while len(generated_list) < 10:
             cc = bin_base
@@ -126,7 +126,7 @@ def generate_cards(message):
                     break
 
         cards_output = "\n".join(generated_list)
-        response = f"""<b>🎲 Tarjetas Generadas (BIN: {bin_number[:6]})</b>
+        response = f"""<b>🎲 Tarjetas Generadas (BIN: {bin_number})</b>
 ─────────────────────
 {cards_output}
 ─────────────────────
@@ -145,17 +145,13 @@ def check_bin_standalone(message):
             bot.reply_to(message, "❌ <b>Uso correcto:</b> <code>/bin 400022</code>", parse_mode="HTML")
             return
         
-        bin_number = bin_match[0][:6]
+        bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
         
-        # Nueva API pública estable
-        response_api = requests.get(f"https://binlist.net{bin_number}", headers={'Accept-Version': '3'})
+        url = f"https://binlist.net{bin_number}"
+        response_api = requests.get(url, headers={'Accept-Version': '3'}, timeout=10)
         
-        brand = "Desconocida"
-        card_type = "Desconocido"
-        bank_name = "Desconocido"
-        country_name = "Desconocido"
-        flag = "🏳️‍🌈"
+        brand, card_type, bank_name, country_name, flag = "Desconocida", "Desconocido", "Desconocido", "Desconocido", "🏳️‍🌈"
 
         if response_api.status_code == 200:
             data = response_api.json()
@@ -187,7 +183,12 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ <b>Formato incorrecto.</b>\nUsa: <code>/chk CC|MES|AÑO|CVV</code>", parse_mode="HTML")
             return
-        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
+            
+        cc = cards[0]
+        mes = cards[1]
+        ano = cards[2]
+        cvv = cards[3]
+        
         if len(cc) < 15 or len(cc) > 16 or len(mes) != 2 or len(cvv) < 3:
             bot.reply_to(message, "❌ <b>Error:</b> Componentes de tarjeta inválidos.", parse_mode="HTML")
             return
@@ -196,14 +197,11 @@ def check_card(message):
         status = "🟢 Formato Válido (Luhn Pass)" if is_luhn_valid else "🔴 Formato Inválido (Luhn Fail)"
 
         bin_number = cc[:6]
-        brand = "Desconocida"
-        card_type = "Desconocido"
-        bank_name = "Desconocido"
-        country_name = "Desconocido"
-        flag = "🏳️‍🌈"
+        brand, card_type, bank_name, country_name, flag = "Desconocida", "Desconocido", "Desconocido", "Desconocido", "🏳️‍🌈"
 
         try:
-            response_api = requests.get(f"https://binlist.net{bin_number}", headers={'Accept-Version': '3'})
+            url = f"https://binlist.net{bin_number}"
+            response_api = requests.get(url, headers={'Accept-Version': '3'}, timeout=10)
             if response_api.status_code == 200:
                 data = response_api.json()
                 brand = data.get("scheme", "Desconocida").capitalize()
