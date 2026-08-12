@@ -29,14 +29,13 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 🔐 CORREGIDO: Parámetros 100% desglosados y limpios sin URLs completas para pg8000
-# Se utiliza el Host IPv4 compatible (.pooler) para saltar el bloqueo de Render
+# 🔐 CORREGIDO: Puerto cambiado a 6543 (Modo Pooler oficial de Supabase para evitar bloqueos)
 def get_db_connection():
     return pg8000.connect(
         user="postgres",
         password="AdamFadlaneLara2021*",
         host="db.csagfnnecsfilqlftkfa.pooler.supabase.com",
-        port=5432,
+        port=6543,
         database="postgres"
     )
 
@@ -218,7 +217,9 @@ def claim_key_user(message):
     key_solicitada = args[-1].upper()
     creditos_ganados = db_reclamar_key(key_solicitada)
     if creditos_ganados:
-        alias, creditos_viejos, rango = verificar_registro(user_id)
+        datos = verificar_registro(user_id)
+        alias = datos
+        creditos_viejos = datos
         valor_key = creditos_ganados
         nuevos_creditos = creditos_viejos + valor_key
         update_user_credits(user_id, nuevos_creditos)
