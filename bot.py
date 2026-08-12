@@ -127,7 +127,7 @@ def check_user_access(message, cost=1):
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
     
-    creditos = datos_usuario
+    creditos = datos_usuario[1]
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
