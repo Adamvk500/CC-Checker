@@ -85,7 +85,7 @@ def get_user_credits(user_id):
     cursor.execute('SELECT creditos FROM usuarios WHERE id = ?', (user_id,))
     result = cursor.fetchone()
     conn.close()
-    return result if result else 0
+    return result[0] if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = sqlite3.connect(DB_FILE)
@@ -106,11 +106,12 @@ def db_reclamar_key(codigo):
     cursor = conn.cursor()
     cursor.execute('SELECT creditos_valor, estado FROM keys WHERE key_code = ?', (codigo,))
     result = cursor.fetchone()
-    if result and result == 'Disponible':
+    # CORREGIDO: Comprobar la posición exacta del estado en la respuesta de la base de datos
+    if result and result[1] == 'Disponible':
         cursor.execute('UPDATE keys SET estado = "Reclamada" WHERE key_code = ?', (codigo,))
         conn.commit()
         conn.close()
-        return result
+        return result[0]
     conn.close()
     return None
 
@@ -130,8 +131,9 @@ def check_user_access(message, cost=1):
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
         
-    alias, creditos, rango = datos_usuario
-
+    alias = datos_usuario[0]
+    creditos = datos_usuario[1]
+    
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
@@ -150,6 +152,7 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
