@@ -148,7 +148,7 @@ def check_bin_standalone(message):
         bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
         
-        url = f"https://binlist.net{bin_number}"
+        url = f"https://binlist.net/{bin_number}"
         response_api = requests.get(url, headers={'Accept-Version': '3'}, timeout=10)
         
         brand, card_type, bank_name, country_name, flag = "Desconocida", "Desconocido", "Desconocido", "Desconocido", "🏳️‍🌈"
