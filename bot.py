@@ -29,15 +29,13 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 🔐 CORREGIDO: Formato oficial del Pooler de Supabase separando el Tenant ID en application_name
 def get_db_connection():
     return pg8000.connect(
         user="postgres",
         password="AdamFadlaneLara2021*",
-        host="://supabase.com",
+        host="aws-0-eu-west-1.pooler.supabase.com",
         port=6543,
         database="postgres",
-        # Parámetro clave obligatorio para que el Pooler sepa a qué cuenta enviar los datos
         application_name="csagfnnecsfilqlftkfa"
     )
 
@@ -353,3 +351,4 @@ while True:
     except Exception as e:
         print(f"Error general: {e}")
         time.sleep(5)
+
