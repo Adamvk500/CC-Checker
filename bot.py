@@ -30,11 +30,10 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 👑 TU NUEVA CONFIGURACIÓN ACTUALIZADA (100% Funcional sin bloqueos)
 def get_db_connection():
     contexto_ssl = ssl._create_unverified_context()
     return pg8000.connect(
-        host="aws-1-eu-west-1.pooler.supabase.com",
+        host="://supabase.com",
         port=5432,
         database="postgres",
         user="postgres.csagfnnecsfilqlftkfa",
@@ -95,7 +94,6 @@ def eliminar_usuario_db(user_id):
     cursor.close()
     conn.close()
 
-# NUEVA: Función para actualizar el rango (Gratis/VIP) en Supabase
 def update_user_rank(user_id, nuevo_rango):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -111,7 +109,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result if result else 0
+    return result[0] if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
@@ -121,7 +119,7 @@ def update_user_credits(user_id, nuevos_creditos):
     cursor.close()
     conn.close()
 
-# 🛡️ ACTUALIZADO: Reglas de ciberseguridad con bypass VIP de créditos gratis infinitos
+# 🛡️ CORREGIDO: Indexación exacta por corchetes del rango para el bypass VIP definitivo
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
@@ -137,10 +135,10 @@ def check_user_access(message, cost=1):
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
     
-    creditos = datos_usuario
-    rango = datos_usuario
+    creditos = datos_usuario[1]
+    rango = datos_usuario[2]  # Extrae la palabra limpia del rango (índice 2)
     
-    # 💎 BYPASS VIP: Si el rango es VIP, pasa directo sin cobrar créditos
+    # 💎 Compara la cadena de texto limpia
     if rango == "VIP":
         LAST_COMMAND_TIME[user_id] = current_time
         return True
@@ -163,6 +161,7 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+
 # 👑 NUEVO COMANDO: /setvip (Cambia el rango de un usuario a VIP en Reply)
 @bot.message_handler(commands=['setvip'])
 def set_user_vip_admin(message):
