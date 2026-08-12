@@ -30,6 +30,7 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
+# 👑 TU NUEVA CONFIGURACIÓN ACTUALIZADA (100% Funcional sin bloqueos)
 def get_db_connection():
     contexto_ssl = ssl._create_unverified_context()
     return pg8000.connect(
@@ -86,6 +87,15 @@ def registrar_usuario_manual(user_id, alias, tg_username):
     cursor.close()
     conn.close()
 
+# NUEVA: Función interna para borrar usuarios de Supabase
+def eliminar_usuario_db(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM usuarios WHERE id = %s', (user_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def get_user_credits(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -93,7 +103,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result[0] if result else 0
+    return result if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
@@ -117,7 +127,7 @@ def check_user_access(message, cost=1):
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
     
-    creditos = datos_usuario[1]
+    creditos = datos_usuario
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
@@ -135,36 +145,57 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+# 👑 NUEVO COMANDO: /delete (Elimina tu cuenta o la de un cliente en Reply)
+@bot.message_handler(commands=['delete', 'unregister'])
+def delete_user_admin(message):
+    user_id = message.from_user.id
+    
+    # Filtro de Administrador estricto para que nadie más borre datos
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ No tienes permisos de dueño para eliminar registros.")
+        return
+
+    # Si respondes al mensaje de alguien, borra a ese usuario
+    if message.reply_to_message:
+        target_id = message.reply_to_message.from_user.id
+        datos_cliente = verificar_registro(target_id)
+        if not datos_cliente:
+            bot.reply_to(message, "❌ Este usuario ni siquiera está registrado.")
+            return
+        eliminar_usuario_db(target_id)
+        bot.reply_to(message, f"🗑️ Cuenta de <code>{datos_cliente}</code> eliminada de la base de datos en la nube.", parse_mode="HTML")
+    else:
+        # Si pones el comando suelto, te borra a ti mismo para que puedas hacer pruebas de re-registro
+        if verificar_registro(user_id):
+            eliminar_usuario_db(user_id)
+            bot.reply_to(message, "🗑️ Tu cuenta ha sido eliminada con éxito. Ya puedes volver a usar /register.")
+        else:
+            bot.reply_to(message, "❌ No estás registrado en el sistema.")
+
 @bot.message_handler(commands=['add'])
 def add_credits_admin(message):
     user_id = message.from_user.id
     args = message.text.split()
-    
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos para usar este comando.")
         return
-
     if len(args) < 2 or not message.reply_to_message:
-        bot.reply_to(message, "✏️ <b>Uso correcto:</b> Responde al mensaje del cliente y escribe: <code>/add cantidad</code>", parse_mode="HTML")
+        bot.reply_to(message, "✏️ Uso: Responde al mensaje del cliente y escribe: /add cantidad")
         return
-
     try:
         cantidad = int(args[-1])
         target_id = message.reply_to_message.from_user.id
-        
         datos_cliente = verificar_registro(target_id)
         if not datos_cliente:
-            bot.reply_to(message, "❌ Este usuario no está registrado en el bot.")
+            bot.reply_to(message, "❌ Este usuario no está registrado.")
             return
-            
-        alias = datos_cliente[0]
-        creditos_viejos = datos_cliente[1]
+        alias = datos_cliente
+        creditos_viejos = datos_cliente
         nuevos_creditos = creditos_viejos + cantidad
         update_user_credits(target_id, nuevos_creditos)
-        
-        bot.reply_to(message, f"🪙 <b>Inyección Exitosa</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{cantidad}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas.", parse_mode="HTML")
+        bot.reply_to(message, f"🪙 Inyección Exitosa\n─────────────────────\n👤 Usuario: {alias}\n Recargados: +{cantidad} créditos.\n🪙 Total actual: {nuevos_creditos} monedas.")
     except ValueError:
-        bot.reply_to(message, "❌ Por favor, introduce una cantidad numérica válida.")
+        bot.reply_to(message, "❌ Introduce una cantidad numérica válida.")
 
 @bot.message_handler(commands=['register'])
 def register_user(message):
@@ -178,7 +209,7 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
     alias_deseado = args[-1]
-    if not re.match(r'^^[\w\d]+$', alias_deseado):
+    if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
         return
     if comprobar_alias_existe(alias_deseado):
@@ -193,20 +224,18 @@ def show_credits(message):
     if not datos:
         bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
         return
-    # CORREGIDO: Extraer los índices, [1] y [2] para limpiar el formato visual
-    alias = datos[0]
-    creditos = datos[1]
-    rango = datos[2]
+    alias = datos
+    creditos = datos
+    rango = datos
     bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        # CORREGIDO: Extraer los índices, [1] y [2] para limpiar el formato visual
-        alias = datos[0]
-        creditos = datos[1]
-        rango = datos[2]
+        alias = datos
+        creditos = datos
+        rango = datos
         welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
