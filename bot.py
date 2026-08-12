@@ -29,14 +29,16 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 🔐 CORREGIDO: Hostname DNS real y limpio oficial de Supabase con puerto Pooler IPv4
+# 🔐 CORREGIDO: Formato oficial del Pooler de Supabase separando el Tenant ID en application_name
 def get_db_connection():
     return pg8000.connect(
-        user="postgres.csagfnnecsfilqlftkfa",
+        user="postgres",
         password="AdamFadlaneLara2021*",
-        host="aws-0-eu-west-1.pooler.supabase.com",
+        host="://supabase.com",
         port=6543,
-        database="postgres"
+        database="postgres",
+        # Parámetro clave obligatorio para que el Pooler sepa a qué cuenta enviar los datos
+        application_name="csagfnnecsfilqlftkfa"
     )
 
 def init_db():
