@@ -3,24 +3,29 @@ import re
 import random
 import sys
 import time
+from threading import Thread
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
 import requests
 
-from threading import Thread
-from http.server import SimpleHTTPRequestHandler, HTTPServer
+TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
+bot = telebot.TeleBot(TOKEN)
 
-# Servidor web falso para que Render se ponga en verde (Live)
 def run_fake_server():
     server = HTTPServer(('0.0.0.0', 10000), SimpleHTTPRequestHandler)
     server.serve_forever()
 
 Thread(target=run_fake_server, daemon=True).start()
 
-# 1. Configuración del Token seguro
-TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
-bot = telebot.TeleBot(TOKEN)
+USER_CREDITS = {}      
+LAST_COMMAND_TIME = {} 
 
-# 2. Algoritmo matemático para validar tarjetas (Luhn)
+FLAG_EMOJIS = {
+    "United states": "🇺🇸", "Colombia": "🇨🇴", "Mexico": "🇲🇽", "Spain": "🇪🇸", 
+    "Argentina": "🇦🇷", "Peru": "🇵🇪", "Chile": "🇨🇱", "Ecuador": "🇪🇨", 
+    "Venezuela": "🇻🇪", "Brazil": "🇧🇷", "Canada": "🇨🇦", "United kingdom": "🇬🇧"
+}
+
 def luhn_check(card_number):
     total = 0
     reverse_digits = card_number[::-1]
@@ -33,29 +38,79 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# 3. Comando de Bienvenida (/start)
+def get_user_credits(user_id):
+    if user_id not in USER_CREDITS:
+        USER_CREDITS[user_id] = 10
+    return USER_CREDITS[user_id]
+
+def check_antiflood_and_credits(message, cost=1):
+    user_id = message.from_user.id
+    current_time = time.time()
+    
+    if user_id in LAST_COMMAND_TIME:
+        time_passed = current_time - LAST_COMMAND_TIME[user_id]
+        if time_passed < 5:
+            time_left = 5 - int(time_passed)
+            bot.reply_to(message, f"⏳ <b>¡Cálmate!</b> Debes esperar <code>{time_left}s</code> antes de usar otro comando.", parse_mode="HTML")
+            return False
+
+    credits = get_user_credits(user_id)
+    if credits < cost:
+        bot.reply_to(message, f"❌ <b>Créditos insuficientes.</b>\nTienes: <code>{credits}</code> créditos.\n<i>Necesitas al menos {cost} crédito para esta acción.</i>", parse_mode="HTML")
+        return False
+        
+    LAST_COMMAND_TIME[user_id] = current_time
+    USER_CREDITS[user_id] -= cost
+    return True
+
+@bot.message_handler(commands=['add'])
+def add_credits_admin(message):
+    try:
+        args = message.text.split()
+        if len(args) < 3:
+            bot.reply_to(message, "✏️ Uso: <code>/add @username_o_id cantidad</code>", parse_mode="HTML")
+            return
+            
+        amount = int(args[2])
+        
+        if message.reply_to_message:
+            target_id = message.reply_to_message.from_user.id
+            USER_CREDITS[target_id] = get_user_credits(target_id) + amount
+            bot.reply_to(message, f"🪙 Añadidos <code>{amount}</code> créditos al usuario indicado.", parse_mode="HTML")
+        else:
+            bot.reply_to(message, "💡 Consejo: Usa este comando respondiendo (Reply) al mensaje del usuario al que quieres darle créditos.")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Error: {str(e)}")
+
+@bot.message_handler(commands=['credits', 'bal'])
+def show_credits(message):
+    credits = get_user_credits(message.from_user.id)
+    bot.reply_to(message, f"🪙 <b>Tus Créditos Disponibles:</b> <code>{credits}</code>\n<i>Cada consulta cuesta 1 crédito.</i>", parse_mode="HTML")
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    welcome_text = f"""<b>👋 ¡Hola, @{message.from_user.username or 'Usuario'}! Bienvenido a tu CC Checker Bot</b>
+    credits = get_user_credits(message.from_user.id)
+    welcome_text = f"""<b>👋 ¡Hola, @{message.from_user.username or 'Usuario'}! Bienvenido a tu CC Checker Premium</b>
 
 Aquí tienes la lista de comandos disponibles:
-⚡ <code>/chk CC|MES|AÑO|CVV</code> ⤿ Revisa el formato y banco de una tarjeta.
-🎲 <code>/gen BIN</code> ⤿ Genera 10 tarjetas válidas con un número base (BIN).
+⚡ <code>/chk CC|MES|AÑO|CVV</code> ⤿ Revisa una tarjeta (Cuesta 1 🪙).
+🎲 <code>/gen BIN</code> ⤿ Genera 10 CCs válidas (Cuesta 1 🪙).
+🔍 <code>/bin BIN</code> ⤿ Consulta avanzada de banco (Cuesta 1 🪙).
+🪙 <code>/credits</code> ⤿ Mira tu saldo de créditos actual.
 
-<i>Bot alojado con éxito las 24/7 en la nube. 🚀</i>"""
+<b>Tu saldo actual:</b> <code>{credits}</code> créditos gratis. 💎
+<i>Ataques de spam protegidos con Antiflood de 5s. 🛡️</i>"""
     bot.reply_to(message, welcome_text, parse_mode="HTML")
 
-# 4. Comando Generador de Tarjetas (/gen)
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
+    if not check_antiflood_and_credits(message, cost=1): return
     try:
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
-        
         if not bin_match:
             bot.reply_to(message, "❌ <b>Uso correcto:</b> <code>/gen 400022</code>", parse_mode="HTML")
             return
-            
         bin_number = bin_match[0]
         if len(bin_number) < 6:
             bot.reply_to(message, "⚠️ El BIN debe tener al menos 6 dígitos.", parse_mode="HTML")
@@ -63,12 +118,9 @@ def generate_cards(message):
 
         bin_base = bin_number[:12]
         generated_list = []
-
         while len(generated_list) < 10:
             cc = bin_base
-            while len(cc) < 15:
-                cc += str(random.randint(0, 9))
-            
+            while len(cc) < 15: cc += str(random.randint(0, 9))
             for last_digit in range(10):
                 test_cc = cc + str(last_digit)
                 if luhn_check(test_cc) and test_cc not in generated_list:
@@ -83,15 +135,51 @@ def generate_cards(message):
 ─────────────────────
 {cards_output}
 ─────────────────────
-<b>Generadas por:</b> @{message.from_user.username or 'Usuario'}"""
-        
+<b>Restante:</b> <code>{USER_CREDITS[message.from_user.id]}</code> 🪙"""
         bot.reply_to(message, response, parse_mode="HTML")
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error al generar: {str(e)}")
 
-# 5. Comando Verificador de Tarjetas (/chk)
+@bot.message_handler(regexp=r'(?i)^[!/]bin')
+def check_bin_standalone(message):
+    if not check_antiflood_and_credits(message, cost=1): return
+    try:
+        input_data = message.text
+        bin_match = re.findall(r'\d+', input_data)
+        if not bin_match:
+            bot.reply_to(message, "❌ <b>Uso correcto:</b> <code>/bin 400022</code>", parse_mode="HTML")
+            return
+        bin_number = bin_match[0][:6]
+        
+        bot.send_chat_action(message.chat.id, 'typing')
+        response_api = requests.get(f"https://payout.com{bin_number}")
+        
+        if response_api.status_code == 200:
+            data = response_api.json()
+            brand = data.get("brand", "Desconocida").capitalize()
+            card_type = data.get("type", "Desconocido").capitalize()
+            bank_name = data.get("bank", "Desconocido").upper()
+            country_name = data.get("country_name", "Desconocido")
+            flag = FLAG_EMOJIS.get(country_name, "🏳️‍🌈")
+
+            response = f"""<b>🔍 Información del BIN [<code>{bin_number}</code>]</b>
+──────────────────
+<b>Franquicia:</b> <code>{brand}</code>
+<b>Tipo:</b> <code>{card_type}</code>
+<b>Banco:</b> <code>{bank_name}</code>
+<b>País:</b> {country_name} {flag}
+──────────────────
+<b>Restante:</b> <code>{USER_CREDITS[message.from_user.id]}</code> 🪙"""
+        else:
+            response = "❌ No se encontró información para ese número de BIN."
+            
+        bot.reply_to(message, response, parse_mode="HTML")
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Error BIN: {str(e)}")
+
 @bot.message_handler(regexp=r'(?i)^[!/]chk')
 def check_card(message):
+    if not check_antiflood_and_credits(message, cost=1): return
     try:
         input_data = message.text
         cards = re.findall(r'\d+', input_data)
@@ -107,10 +195,9 @@ def check_card(message):
         status = "🟢 Formato Válido (Luhn Pass)" if is_luhn_valid else "🔴 Formato Inválido (Luhn Fail)"
 
         bin_number = cc[:6]
-        bank_name, country_name, card_type, brand = "Desconocido", "Desconocido", "Desconocido", "Desconocida"
+        bank_name, country_name, card_type, brand, flag = "Desconocido", "Desconocido", "Desconocido", "Desconocida", "🏳️‍🌈"
 
         try:
-            # API de BINS rápida y estable
             response_api = requests.get(f"https://payout.com{bin_number}")
             if response_api.status_code == 200:
                 data = response_api.json()
@@ -118,36 +205,35 @@ def check_card(message):
                 card_type = data.get("type", "Desconocido").capitalize()
                 bank_name = data.get("bank", "Desconocido").upper()
                 country_name = data.get("country_name", "Desconocido")
+                flag = FLAG_EMOJIS.get(country_name, "🏳️‍🌈") 
         except:
             if cc.startswith('4'): brand = "Visa"
             elif cc.startswith(('51', '52', '53', '54', '55')): brand = "Mastercard"
-            elif cc.startswith(('34', '37')): brand = "American Express"
 
-        response = f"""<b>💳 CC Checker Bot v2.5</b>
+        response = f"""<b>💳 CC Checker Bot Premium v3.0</b>
 ──────────────────
 <b>Card:</b> <code>{cc}|{mes}|{ano}|{cvv}</code>
 <b>Estado:</b> {status}
 <b>Franquicia:</b> {brand}
-<b>Tipo:</b> {card_type}
-<b>Banco:</b> {bank_name}
-<b>País:</b> {country_name}
+<b>Tipo:</b> <code>{card_type}</code>
+<b>Banco:</b> <code>{bank_name}</code>
+<b>País:</b> {country_name} {flag}
 ──────────────────
-<b>Checked by:</b> @{message.from_user.username or 'Usuario'}"""
+<b>Saldo Restante:</b> <code>{USER_CREDITS[message.from_user.id]}</code> 🪙"""
         bot.reply_to(message, response, parse_mode="HTML")
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
-# 6. Bucle de arranque seguro anti-conflictos (Evita el cartel de Failed)
 while True:
     try:
         print("Limpiando webhooks y sesiones previas...")
         bot.delete_webhook()
-        print("Bot encendido correctamente en el plan gratuito y listo para usar.")
+        print("Bot Premium encendido correctamente.")
         bot.infinity_polling(skip_pending=True)
     except telebot.apihelper.ApiTelegramException as e:
         if e.error_code == 409:
-            print("⚠️ Conflicto 409 detectado (Bot duplicado). Esperando 10 segundos en silencio...")
-            time.sleep(10)  # Pausa pacífica para que Render apague el bot viejo de fondo
+            print("⚠️ Conflicto detectado de procesos. Esperando 10 segundos...")
+            time.sleep(10)
         else:
             print(f"Error de Telegram: {e}")
             time.sleep(5)
