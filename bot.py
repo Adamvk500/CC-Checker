@@ -34,11 +34,11 @@ LOCAL_BINS = {
 def get_db_connection():
     contexto_ssl = ssl.create_default_context()
     return pg8000.connect(
-        user="postgres.csagfnnecsfilqlftkfa",  # El formato de usuario combinado oficial para identificar tu tenant
-        password="AdamFadlaneLara2021*",
-        host="db.csagfnnecsfilqlftkfa.supabase.co",
+        host="aws-1-eu-west-1.pooler.supabase.com",
         port=5432,
         database="postgres",
+        user="postgres.csagfnnecsfilqlftkfa",
+        password="AdamFadlaneLara2021*",
         ssl_context=contexto_ssl  # Le dice a pg8000 que firme la conexión cifrada con el SNI
     )
 
