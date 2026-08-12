@@ -127,7 +127,7 @@ def check_user_access(message, cost=1):
 
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
-        bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre para obtener 10 creditos.")
+        bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
         
     alias, creditos, rango = datos_usuario
@@ -164,7 +164,7 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
         
-    alias_deseado = args
+    alias_deseado = args[1]
     
     if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
@@ -190,7 +190,7 @@ def generate_key_admin(message):
         return
 
     try:
-        cantidad = int(args[-1])
+        cantidad = int(args[1])
         import string
         chars = string.ascii_uppercase + string.digits
         codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
@@ -215,25 +215,23 @@ def claim_key_user(message):
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
 
-    key_solicitada = args[-1].upper()
+    key_solicitada = args[1].upper()
     creditos_ganados = db_reclamar_key(key_solicitada)
     
     if creditos_ganados:
         alias, creditos_viejos, rango = verificar_registro(user_id)
-        nuevos_creditos = creditos_viejos + creditos_ganados
+        nuevos_creditos = creditos_viejos + creditos_ganados[0]
         update_user_credits(user_id, nuevos_creditos)
         
-        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{creditos_ganados}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
+        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{creditos_ganados[0]}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
         bot.reply_to(message, texto_exito, parse_mode="HTML")
     else:
         bot.reply_to(message, "❌ Código inválido o ya utilizado.")
 
-# 💾 NUEVO COMANDO DE RESPALDO EXCLUSIVO PARA TI
 @bot.message_handler(commands=['backup'])
 def send_backup_db(message):
     if message.from_user.username != "Adam_vk_500": return
     try:
-        # Te envia el archivo real usuarios.db directo a tu chat para que no pierdas nada
         with open(DB_FILE, 'rb') as f:
             bot.send_document(message.chat.id, f, caption="📦 ¡Aquí tienes tu Base de Datos real de respaldo!")
     except Exception as e:
@@ -325,7 +323,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-        cc, mes, ano, cvv = cards, cards, cards, cards
+        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
