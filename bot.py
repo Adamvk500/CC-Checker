@@ -3,7 +3,7 @@ import re
 import random
 import sys
 import time
-import ssl  # 🔐 Nueva librería nativa para forzar el SNI de seguridad de Supabase
+import ssl  
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
@@ -30,7 +30,7 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 🔐 CORREGIDO: Activación de ssl_context para inyectar obligatoriamente el SNI hostname
+# 👑 TU NUEVA CONFIGURACIÓN ACTUALIZADA (100% Funcional sin bloqueos)
 def get_db_connection():
     contexto_ssl = ssl._create_unverified_context()
     return pg8000.connect(
@@ -39,7 +39,7 @@ def get_db_connection():
         database="postgres",
         user="postgres.csagfnnecsfilqlftkfa",
         password="AdamFadlaneLara2021*",
-        ssl_context=contexto_ssl  # Le dice a pg8000 que firme la conexión cifrada con el SNI
+        ssl_context=contexto_ssl  
     )
 
 def init_db():
@@ -52,13 +52,6 @@ def init_db():
             telegram_username TEXT,
             creditos INTEGER DEFAULT 0,
             rango TEXT DEFAULT 'Gratis'
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS keys (
-            key_code TEXT PRIMARY KEY,
-            creditos_valor INTEGER,
-            estado TEXT DEFAULT 'Disponible'
         )
     ''')
     conn.commit()
@@ -111,29 +104,6 @@ def update_user_credits(user_id, nuevos_creditos):
     cursor.close()
     conn.close()
 
-def db_guardar_key(codigo, cantidad):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO keys (key_code, creditos_valor) VALUES (%s, %s)', (codigo, cantidad))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-def db_reclamar_key(codigo):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT creditos_valor, estado FROM keys WHERE key_code = %s', (codigo,))
-    result = cursor.fetchone()
-    if result and result == 'Disponible':
-        cursor.execute('UPDATE keys SET estado = \'Reclamada\' WHERE key_code = %s', (codigo,))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return result
-    cursor.close()
-    conn.close()
-    return None
-
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
@@ -166,6 +136,37 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+@bot.message_handler(commands=['add'])
+def add_credits_admin(message):
+    user_id = message.from_user.id
+    args = message.text.split()
+    
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ No tienes permisos para usar este comando.")
+        return
+
+    if len(args) < 2 or not message.reply_to_message:
+        bot.reply_to(message, "✏️ <b>Uso correcto:</b> Responde al mensaje del cliente y escribe: <code>/add cantidad</code>", parse_mode="HTML")
+        return
+
+    try:
+        cantidad = int(args[-1])
+        target_id = message.reply_to_message.from_user.id
+        
+        datos_cliente = verificar_registro(target_id)
+        if not datos_cliente:
+            bot.reply_to(message, "❌ Este usuario no está registrado en el bot.")
+            return
+            
+        alias = datos_cliente
+        creditos_viejos = datos_cliente
+        nuevos_creditos = creditos_viejos + cantidad
+        update_user_credits(target_id, nuevos_creditos)
+        
+        bot.reply_to(message, f"🪙 <b>Inyección Exitosa</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{cantidad}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas.", parse_mode="HTML")
+    except ValueError:
+        bot.reply_to(message, "❌ Por favor, introduce una cantidad numérica válida.")
+
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
@@ -187,48 +188,6 @@ def register_user(message):
     registrar_usuario_manual(user_id, alias_deseado, tg_username)
     bot.reply_to(message, f"🎉 Registro Exitoso! Bienvenido {alias_deseado.lower()}. Recibiste 10 creditos.")
 
-@bot.message_handler(commands=['keygen'])
-def generate_key_admin(message):
-    args = message.text.split()
-    if message.from_user.username != "Adam_vk_500":
-        bot.reply_to(message, "❌ No tienes permisos de administrador.")
-        return
-    if len(args) < 2:
-        bot.reply_to(message, "✏️ Uso: /keygen cantidad_de_creditos")
-        return
-    try:
-        cantidad = int(args[-1])
-        import string
-        chars = string.ascii_uppercase + string.digits
-        codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
-        db_guardar_key(codigo_random, cantidad)
-        texto_admin = f"🔑 <b>KEY GENERADA CON ÉXITO</b>\n─────────────────────\n<b>Código:</b> <code>{codigo_random}</code>\n<b>Valor:</b> <code>{cantidad}</code> créditos 🪙\n─────────────────────\n<i>Puedes poner este código a la venta.</i>"
-        bot.reply_to(message, texto_admin, parse_mode="HTML")
-    except ValueError:
-        bot.reply_to(message, "❌ Introduce un numero valido.")
-
-@bot.message_handler(commands=['claim'])
-def claim_key_user(message):
-    user_id = message.from_user.id
-    args = message.text.split()
-    if not verificar_registro(user_id):
-        bot.reply_to(message, "⚠️ Debes registrarte primero usando /register tu_nombre")
-        return
-    if len(args) < 2:
-        bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
-        return
-    key_solicitada = args[-1].upper()
-    creditos_ganados = db_reclamar_key(key_solicitada)
-    if creditos_ganados:
-        alias, creditos_viejos, rango = verificar_registro(user_id)
-        valor_key = creditos_ganados
-        nuevos_creditos = creditos_viejos + valor_key
-        update_user_credits(user_id, nuevos_creditos)
-        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{valor_key}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
-        bot.reply_to(message, texto_exito, parse_mode="HTML")
-    else:
-        bot.reply_to(message, "❌ Código inválido o ya utilizado.")
-
 @bot.message_handler(commands=['credits', 'bal'])
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
@@ -247,7 +206,7 @@ def send_welcome(message):
         alias = datos
         creditos = datos
         rango = datos
-        welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN\n🔑 Recargar: /claim CODIGO"
+        welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
     bot.reply_to(message, welcome_text)
