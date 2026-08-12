@@ -29,12 +29,11 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# Conexión directa y fija con tus credenciales reales de Supabase
 def get_db_connection():
     return pg8000.connect(
         user="postgres",
         password="AdamFadlaneLara2021*",
-        host="db.csagfnnecsfilqlftkfa.supabase.co",
+        host="://supabase.com",
         port=5432,
         database="postgres"
     )
@@ -174,7 +173,7 @@ def register_user(message):
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
-    alias_deseado = args[1]
+    alias_deseado = args[-1]
     if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
         return
@@ -194,7 +193,7 @@ def generate_key_admin(message):
         bot.reply_to(message, "✏️ Uso: /keygen cantidad_de_creditos")
         return
     try:
-        cantidad = int(args[1])
+        cantidad = int(args[-1])
         import string
         chars = string.ascii_uppercase + string.digits
         codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
@@ -214,13 +213,14 @@ def claim_key_user(message):
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
-    key_solicitada = args[1].upper()
+    key_solicitada = args[-1].upper()
     creditos_ganados = db_reclamar_key(key_solicitada)
     if creditos_ganados:
         alias, creditos_viejos, rango = verificar_registro(user_id)
-        nuevos_creditos = creditos_viejos + creditos_ganados
+        valor_key = creditos_ganados
+        nuevos_creditos = creditos_viejos + valor_key
         update_user_credits(user_id, nuevos_creditos)
-        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{creditos_ganados}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
+        texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{valor_key}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
         bot.reply_to(message, texto_exito, parse_mode="HTML")
     else:
         bot.reply_to(message, "❌ Código inválido o ya utilizado.")
@@ -231,14 +231,18 @@ def show_credits(message):
     if not datos:
         bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
         return
-    alias, creditos, rango = datos
+    alias = datos
+    creditos = datos
+    rango = datos
     bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        alias, creditos, rango = datos
+        alias = datos
+        creditos = datos
+        rango = datos
         welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN\n🔑 Recargar: /claim CODIGO"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
