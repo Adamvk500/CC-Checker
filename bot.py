@@ -20,14 +20,28 @@ USER_CREDITS = {}
 LAST_COMMAND_TIME = {} 
 
 LOCAL_BINS = {
+    # --- ESPAÑA ---
+    "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "🇪🇸"},
+    "454812": {"brand": "Visa", "type": "Debit", "bank": "BBVA", "country": "Spain", "flag": "🇪🇸"},
+    "540624": {"brand": "Mastercard", "type": "Credit", "bank": "CAIXABANK", "country": "Spain", "flag": "🇪🇸"},
+    "522205": {"brand": "Mastercard", "type": "Debit", "bank": "PECUNPAY EDE", "country": "Spain", "flag": "🇪🇸"},
+    "450793": {"brand": "Visa", "type": "Debit", "bank": "BANCO SABADELL", "country": "Spain", "flag": "🇪🇸"},
+    "514039": {"brand": "Mastercard", "type": "Credit", "bank": "ING DIRECT", "country": "Spain", "flag": "🇪🇸"},
+    "406561": {"brand": "Visa", "type": "Debit", "bank": "OPENBANK", "country": "Spain", "flag": "🇪🇸"},
+    "552251": {"brand": "Mastercard", "type": "Debit", "bank": "REVOLUT", "country": "Spain", "flag": "🇪🇸"},
+    # --- COLOMBIA ---
+    "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"},
+    "530691": {"brand": "Mastercard", "type": "Credit", "bank": "BANCO DE BOGOTA", "country": "Colombia", "flag": "🇨🇴"},
+    "421319": {"brand": "Visa", "type": "Debit", "bank": "DAVIVIENDA", "country": "Colombia", "flag": "🇨🇴"},
+    # --- MÉXICO ---
+    "455655": {"brand": "Visa", "type": "Debit", "bank": "BBVA BANCOMER", "country": "Mexico", "flag": "🇲🇽"},
+    "520416": {"brand": "Mastercard", "type": "Credit", "bank": "BANAMEX", "country": "Mexico", "flag": "🇲🇽"},
+    # --- ESTADOS UNIDOS ---
     "400022": {"brand": "Visa", "type": "Credit", "bank": "CHASE BANK", "country": "United States", "flag": "🇺🇸"},
     "510510": {"brand": "Mastercard", "type": "Credit", "bank": "CAPITAL ONE", "country": "United States", "flag": "🇺🇸"},
-    "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"},
-    "455655": {"brand": "Visa", "type": "Debit", "bank": "BBVA BANCOMER", "country": "Mexico", "flag": "🇲🇽"},
-    "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "🇪🇸"},
     "541275": {"brand": "Mastercard", "type": "Credit", "bank": "CITIBANK", "country": "United States", "flag": "🇺🇸"},
-    "400000": {"brand": "Visa", "type": "Debit", "bank": "SANTANDER RIO", "country": "Argentina", "flag": "🇦🇷"},
-    "522205": {"brand": "Mastercard", "type": "Credit", "bank": "NOMBRE DEL BANCO", "country": "Tu País", "flag": "🇨🇴"},
+    # --- ARGENTINA ---
+    "400000": {"brand": "Visa", "type": "Debit", "bank": "SANTANDER RIO", "country": "Argentina", "flag": "🇦🇷"}
 }
 
 def luhn_check(card_number):
