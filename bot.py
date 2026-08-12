@@ -30,11 +30,10 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 👑 TU NUEVA CONFIGURACIÓN ACTUALIZADA (100% Funcional sin bloqueos)
 def get_db_connection():
     contexto_ssl = ssl._create_unverified_context()
     return pg8000.connect(
-        host="aws-1-eu-west-1.pooler.supabase.com",
+        host="://supabase.com",
         port=5432,
         database="postgres",
         user="postgres.csagfnnecsfilqlftkfa",
@@ -94,7 +93,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result if result else 0
+    return result[0] if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
@@ -117,8 +116,8 @@ def check_user_access(message, cost=1):
     if not datos_usuario:
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
-    alias = datos_usuario
-    creditos = datos_usuario
+    
+    creditos = datos_usuario[1]
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
@@ -158,8 +157,8 @@ def add_credits_admin(message):
             bot.reply_to(message, "❌ Este usuario no está registrado en el bot.")
             return
             
-        alias = datos_cliente
-        creditos_viejos = datos_cliente
+        alias = datos_cliente[0]
+        creditos_viejos = datos_cliente[1]
         nuevos_creditos = creditos_viejos + cantidad
         update_user_credits(target_id, nuevos_creditos)
         
@@ -179,7 +178,7 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
     alias_deseado = args[-1]
-    if not re.match(r'^[\w\d]+$', alias_deseado):
+    if not re.match(r'^^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
         return
     if comprobar_alias_existe(alias_deseado):
@@ -194,18 +193,20 @@ def show_credits(message):
     if not datos:
         bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
         return
-    alias = datos
-    creditos = datos
-    rango = datos
+    # CORREGIDO: Extraer los índices, [1] y [2] para limpiar el formato visual
+    alias = datos[0]
+    creditos = datos[1]
+    rango = datos[2]
     bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        alias = datos
-        creditos = datos
-        rango = datos
+        # CORREGIDO: Extraer los índices, [1] y [2] para limpiar el formato visual
+        alias = datos[0]
+        creditos = datos[1]
+        rango = datos[2]
         welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
