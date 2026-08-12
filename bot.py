@@ -153,40 +153,31 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
-# --- COMANDO EXCLUSIVO: /keygen CANTIDAD (Solo tu ID de Telegram puede crearlas) ---
+# --- COMANDO EXCLUSIVO: /keygen CANTIDAD ---
 @bot.message_handler(commands=['keygen'])
 def generate_key_admin(message):
-    user_id = message.from_user.id
     args = message.text.split()
     
-    # 🕵️ Filtro de seguridad para que solo tu cuenta de Telegram use este comando
-    if str(user_id) != "8661836260" and message.from_user.username != "Adam_vk_500":
-        bot.reply_to(message, "❌ No tienes permisos de administrador para generar codigos de venta.")
-        return
-
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: <code>/keygen cantidad_de_creditos</code>", parse_mode="HTML")
         return
 
     try:
+        # CORREGIDO: Extraer el número correctamente de la lista
         cantidad = int(args[1])
+        
         # Generar un codigo aleatorio seguro de 12 letras y numeros
         chars = string.ascii_uppercase + string.digits
         codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
         
         db_guardar_key(codigo_random, cantidad)
         
-        texto_admin = f"""<b>🔑 KEY GENERADA CON ÉXITO</b>
-─────────────────────
-<b>Código:</b> <code>{codigo_random}</code>
-<b>Valor:</b> <code>{cantidad}</code> créditos 🪙
-─────────────────────
-<i>Puedes poner este código a la venta. El usuario que lo use recibirá los créditos al instante.</i>"""
+        texto_admin = f"🔑 <b>KEY GENERADA CON ÉXITO</b>\n─────────────────────\n<b>Código:</b> <code>{codigo_random}</code>\n<b>Valor:</b> <code>{cantidad}</code> créditos 🪙\n─────────────────────\n<i>Puedes poner este código a la venta. El usuario que lo use recibirá los créditos al instante.</i>"
         bot.reply_to(message, texto_admin, parse_mode="HTML")
     except ValueError:
         bot.reply_to(message, "❌ Por favor, introduce un numero valido de creditos.")
 
-# --- COMANDO PÚBLICO: /claim CODIGO (Para que tus compradores recargen saldo) ---
+# --- COMANDO PÚBLICO: /claim CODIGO ---
 @bot.message_handler(commands=['claim'])
 def claim_key_user(message):
     user_id = message.from_user.id
@@ -212,7 +203,7 @@ def claim_key_user(message):
         texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{creditos_ganados}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
         bot.reply_to(message, texto_exito, parse_mode="HTML")
     else:
-        bot.reply_to(message, "❌ <b>Código inválido o ya utilizado.</b>\nVerifica que esté bien escrito o contacta al administrador.")
+        bot.reply_to(message, "❌ <b>Código inválido o ya utilizado.</b>")
 
 @bot.message_handler(commands=['register'])
 def register_user(message):
@@ -340,7 +331,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-        cc, mes, ano, cvv = cards, cards, cards, cards
+        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
