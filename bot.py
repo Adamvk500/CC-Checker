@@ -4,7 +4,7 @@ import random
 import telebot
 import requests
 
-TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
+TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAEAXfRpkJnBwBoXw4KapnQ66kX2IoK_03k")
 bot = telebot.TeleBot(TOKEN)
 
 def luhn_check(card_number):
