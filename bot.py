@@ -126,4 +126,9 @@ def check_card(message):
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
 print("Bot encendido correctamente...")
-bot.infinity_polling()
+# Elimina cualquier sesión colgada antes de encender el bot
+bot.remove_webhook()
+print("Bot encendido correctamente y libre de conflictos...")
+# skip_pending=True hace que el bot ignore los comandos antiguos acumulados durante el reinicio
+bot.infinity_polling(skip_pending=True)
+
