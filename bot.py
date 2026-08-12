@@ -40,7 +40,7 @@ def get_db_connection():
         user="postgres.csagfnnecsfilqlftkfa",
         password="AdamFadlaneLara2021*",
         ssl_context=contexto_ssl  
-    )
+
 
 def init_db():
     conn = get_db_connection()
@@ -95,6 +95,15 @@ def eliminar_usuario_db(user_id):
     cursor.close()
     conn.close()
 
+# NUEVA: Función para actualizar el rango (Gratis/VIP) en Supabase
+def update_user_rank(user_id, nuevo_rango):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET rango = %s WHERE id = %s', (nuevo_rango, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def get_user_credits(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -102,7 +111,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result[0] if result else 0
+    return result if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
@@ -112,6 +121,7 @@ def update_user_credits(user_id, nuevos_creditos):
     cursor.close()
     conn.close()
 
+# 🛡️ ACTUALIZADO: Reglas de ciberseguridad con bypass VIP de créditos gratis infinitos
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
@@ -121,15 +131,24 @@ def check_user_access(message, cost=1):
             time_left = 5 - int(time_passed)
             bot.reply_to(message, f"⏳ Calmate! Espera {time_left}s.")
             return False
+            
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
     
-    creditos = datos_usuario[1]
+    creditos = datos_usuario
+    rango = datos_usuario
+    
+    # 💎 BYPASS VIP: Si el rango es VIP, pasa directo sin cobrar créditos
+    if rango == "VIP":
+        LAST_COMMAND_TIME[user_id] = current_time
+        return True
+        
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
+        
     LAST_COMMAND_TIME[user_id] = current_time
     update_user_credits(user_id, creditos - cost)
     return True
@@ -144,6 +163,44 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+# 👑 NUEVO COMANDO: /setvip (Cambia el rango de un usuario a VIP en Reply)
+@bot.message_handler(commands=['setvip'])
+def set_user_vip_admin(message):
+    user_id = message.from_user.id
+    args = message.text.split()
+    
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ No tienes permisos de dueño para otorgar rangos.")
+        return
+
+    if not message.reply_to_message:
+        bot.reply_to(message, "✏️ <b>Uso correcto:</b> Responde al mensaje del usuario y escribe: <code>/setvip</code>", parse_mode="HTML")
+        return
+
+    target_id = message.reply_to_message.from_user.id
+    datos_cliente = verificar_registro(target_id)
+    if not datos_cliente:
+        bot.reply_to(message, "❌ Este usuario no está registrado en el bot.")
+        return
+        
+    alias = datos_cliente[0]
+    update_user_rank(target_id, "VIP")
+    
+    bot.reply_to(message, f"💎 <b>RANGO ACTUALIZADO</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n🔰 Nuevo Rango: <b>🌟 VIP Premium</b>\n⚡ Beneficio: <i>¡Consultas infinitas gratis activadas!</i>", parse_mode="HTML")
+
+# 👑 NUEVO COMANDO: /setgratis (Para quitar el VIP si es necesario en Reply)
+@bot.message_handler(commands=['setgratis'])
+def remove_user_vip_admin(message):
+    user_id = message.from_user.id
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
+    if not message.reply_to_message: return
+    
+    target_id = message.reply_to_message.from_user.id
+    datos_cliente = verificar_registro(target_id)
+    if datos_cliente:
+        update_user_rank(target_id, "Gratis")
+        bot.reply_to(message, f"🔰 Rango de <code>{datos_cliente[0]}</code> cambiado de nuevo a <b>Gratis</b>.", parse_mode="HTML")
+
 @bot.message_handler(commands=['delete', 'unregister'])
 def delete_user_admin(message):
     user_id = message.from_user.id
@@ -180,7 +237,6 @@ def add_credits_admin(message):
         
     try:
         cantidad = int(args[-1])
-        # Si respondes a un mensaje, recarga al objetivo. Si no, te recarga a ti mismo directamente
         target_id = message.reply_to_message.from_user.id if message.reply_to_message else user_id
         
         datos_cliente = verificar_registro(target_id)
@@ -195,7 +251,6 @@ def add_credits_admin(message):
         bot.reply_to(message, f"🪙 <b>Inyección Exitosa</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{cantidad}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas.", parse_mode="HTML")
     except ValueError:
         bot.reply_to(message, "❌ Introduce una cantidad numérica válida.")
-
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
@@ -267,7 +322,7 @@ def generate_cards(message):
                     generated_list.append(f"{test_cc}|{mes}|{ano}|{cvv}")
                     break
         cards_output = "\n".join(generated_list)
-        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)} creditos."
+        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)[0]} creditos."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error al generar: {str(e)}")
@@ -293,7 +348,7 @@ def check_bin_standalone(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)}."
+        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0]}."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
@@ -321,7 +376,7 @@ def check_card(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)}"
+        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0]}"
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
