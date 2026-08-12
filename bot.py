@@ -36,8 +36,8 @@ def get_db_connection():
     return pg8000.connect(
         user="postgres.csagfnnecsfilqlftkfa",  # El formato de usuario combinado oficial para identificar tu tenant
         password="AdamFadlaneLara2021*",
-        host="postgresql://postgres:AdamFadlaneLara2021*@db.csagfnnecsfilqlftkfa.supabase.co:5432/postgres",
-        port=6543,
+        host="db.csagfnnecsfilqlftkfa.supabase.co",
+        port=5432,
         database="postgres",
         ssl_context=contexto_ssl  # Le dice a pg8000 que firme la conexión cifrada con el SNI
     )
