@@ -76,9 +76,9 @@ def add_credits_admin(message):
         if message.reply_to_message:
             target_id = message.reply_to_message.from_user.id
             USER_CREDITS[target_id] = get_user_credits(target_id) + amount
-            bot.reply_to(message, f"🪙 Añadidos <code>{amount}</code> créditos al usuario indicado.", parse_mode="HTML")
+            bot.reply_to(message, f"🪙 Añadidos <code>{amount}</code> créditos al usuario.", parse_mode="HTML")
         else:
-            bot.reply_to(message, "💡 Consejo: Usa este comando respondiendo (Reply) al mensaje del usuario al que quieres darle créditos.")
+            bot.reply_to(message, "💡 Responde al mensaje de un usuario con este comando para añadirle créditos.")
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
@@ -111,6 +111,7 @@ def generate_cards(message):
         if not bin_match:
             bot.reply_to(message, "❌ <b>Uso correcto:</b> <code>/gen 400022</code>", parse_mode="HTML")
             return
+        
         bin_number = bin_match[0]
         if len(bin_number) < 6:
             bot.reply_to(message, "⚠️ El BIN debe tener al menos 6 dígitos.", parse_mode="HTML")
@@ -149,8 +150,8 @@ def check_bin_standalone(message):
         if not bin_match:
             bot.reply_to(message, "❌ <b>Uso correcto:</b> <code>/bin 400022</code>", parse_mode="HTML")
             return
-        bin_number = bin_match[0][:6]
         
+        bin_number = bin_match[0][:6]
         bot.send_chat_action(message.chat.id, 'typing')
         response_api = requests.get(f"https://payout.com{bin_number}")
         
@@ -171,7 +172,7 @@ def check_bin_standalone(message):
 ──────────────────
 <b>Restante:</b> <code>{USER_CREDITS[message.from_user.id]}</code> 🪙"""
         else:
-            response = "❌ No se encontró información para ese número de BIN."
+            response = f"❌ No se encontró información para el BIN <code>{bin_number}</code>."
             
         bot.reply_to(message, response, parse_mode="HTML")
     except Exception as e:
