@@ -6,7 +6,6 @@ import time
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
-import requests
 
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
@@ -17,6 +16,7 @@ def run_fake_server():
 
 Thread(target=run_fake_server, daemon=True).start()
 
+# --- BASE DE DATOS EN LA NUBE ---
 ADMIN_DB_ID = 5203992513  
 
 USER_ALIAS = {}    
@@ -42,8 +42,7 @@ def sincronizar_desde_telegram():
         updates = bot.get_chat_history(ADMIN_DB_ID, limit=5000)
         for msg in reversed(list(updates)):
             if msg.text:
-                # CORREGIDO: Indexación exacta por corchetes para recuperar datos de los strings
-                if msg.text.startswith("💾_REGISTRO_"):
+                if msg.text.startswith("REGISTRO"):
                     partes = msg.text.split("|")
                     uid = int(partes[1])
                     alias = partes[2]
@@ -51,19 +50,19 @@ def sincronizar_desde_telegram():
                     if uid not in USER_CREDITS: USER_CREDITS[uid] = 10
                     if uid not in USER_RANK: USER_RANK[uid] = "Gratis"
                 
-                elif msg.text.startswith("💾_CREDITOS_"):
+                elif msg.text.startswith("CREDITOS"):
                     partes = msg.text.split("|")
                     uid = int(partes[1])
                     creditos = int(partes[2])
                     USER_CREDITS[uid] = creditos
                 
-                elif msg.text.startswith("💾_KEYCREADA_"):
+                elif msg.text.startswith("KEYCREADA"):
                     partes = msg.text.split("|")
                     key = partes[1]
                     valor = int(partes[2])
                     KEYS_DATABASE[key] = valor
                 
-                elif msg.text.startswith("💾_KEYUSADA_"):
+                elif msg.text.startswith("KEYUSADA"):
                     partes = msg.text.split("|")
                     key = partes[1]
                     if key in KEYS_DATABASE:
@@ -77,26 +76,26 @@ def respaldar_registro(user_id, alias):
     USER_CREDITS[user_id] = 10
     USER_RANK[user_id] = "Gratis"
     try:
-        bot.send_message(ADMIN_DB_ID, f"💾_REGISTRO_|{user_id}|{alias.lower()}")
+        bot.send_message(ADMIN_DB_ID, f"REGISTRO|{user_id}|{alias.lower()}")
     except: pass
 
 def respaldar_creditos(user_id, creditos):
     USER_CREDITS[user_id] = creditos
     try:
-        bot.send_message(ADMIN_DB_ID, f"💾_CREDITOS_|{user_id}|{creditos}")
+        bot.send_message(ADMIN_DB_ID, f"CREDITOS|{user_id}|{creditos}")
     except: pass
 
 def respaldar_nueva_key(key_code, cantidad):
     KEYS_DATABASE[key_code] = cantidad
     try:
-        bot.send_message(ADMIN_DB_ID, f"💾_KEYCREADA_|{key_code}|{cantidad}")
+        bot.send_message(ADMIN_DB_ID, f"KEYCREADA|{key_code}|{cantidad}")
     except: pass
 
 def respaldar_key_usada(key_code):
     if key_code in KEYS_DATABASE:
         del KEYS_DATABASE[key_code]
     try:
-        bot.send_message(ADMIN_DB_ID, f"💾_KEYUSADA_|{key_code}")
+        bot.send_message(ADMIN_DB_ID, f"KEYUSADA|{key_code}")
     except: pass
 
 def check_user_access(message, cost=1):
@@ -146,7 +145,7 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
         
-    # CORREGIDO: Obtener la palabra de la lista usando indexacion [1]
+    # Corregido: Indexacion correcta [1] para leer strings
     alias_deseado = args[1].lower()
     
     if not re.match(r'^[\w\d]+$', alias_deseado):
@@ -173,7 +172,7 @@ def generate_key_admin(message):
         return
 
     try:
-        # CORREGIDO: Obtener el numero de la lista usando indexacion [1]
+        # Corregido: Indexacion correcta [1] para leer enteros
         cantidad = int(args[1])
         import string
         chars = string.ascii_uppercase + string.digits
@@ -199,7 +198,7 @@ def claim_key_user(message):
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
 
-    # CORREGIDO: Obtener el codigo de la lista usando indexacion [1]
+    # Corregido: Indexacion correcta [1] para leer codigos
     key_solicitada = args[1].upper()
     
     if key_solicitada in KEYS_DATABASE:
@@ -207,7 +206,7 @@ def claim_key_user(message):
         respaldar_key_usada(key_solicitada)
         
         creditos_viejos = USER_CREDITS.get(user_id, 0)
-        nuevos_creditos = creditos_viejos + creditos_ganados
+        nuevos_creditos = creditos_viejos + credited_ganados if 'credited_ganados' in locals() else creditos_viejos + creditos_ganados
         respaldar_creditos(user_id, nuevos_creditos)
         
         alias = USER_ALIAS[user_id]
@@ -306,7 +305,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-        cc, mes, ano, cvv = cards, cards, cards, cards
+        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
