@@ -164,7 +164,7 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
         
-    alias_deseado = args[1]
+    alias_deseado = args[-1]
     
     if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
@@ -190,7 +190,7 @@ def generate_key_admin(message):
         return
 
     try:
-        cantidad = int(args[1])
+        cantidad = int(args[-1])
         import string
         chars = string.ascii_uppercase + string.digits
         codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
@@ -212,18 +212,15 @@ def claim_key_user(message):
         return
 
     if len(args) < 2:
-        bot.reply_to(message, "✏️ Uso: <code>/claim ADAM-CODIGO</code>", parse_mode="HTML")
+        bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
 
-    # CORREGIDO: Seleccionar la posición [1] para leer solo la llave e ignorar la palabra /claim
-    key_solicitada = args[1].upper()
+    # CORREGIDO: Tomar la última palabra del mensaje y aplicarle el mayúsculas de forma segura
+    key_solicitada = args[-1].upper()
     creditos_ganados = db_reclamar_key(key_solicitada)
     
     if creditos_ganados:
-        datos = verificar_registro(user_id)
-        alias = datos[0]
-        creditos_viejos = datos[1]
-        # Extraer el valor numérico puro de la respuesta de la base de datos
+        alias, creditos_viejos, rango = verificar_registro(user_id)
         valor_key = creditos_ganados[0]
         nuevos_creditos = creditos_viejos + valor_key
         update_user_credits(user_id, nuevos_creditos)
@@ -248,18 +245,14 @@ def show_credits(message):
     if not datos:
         bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
         return
-    alias = datos[0]
-    creditos = datos[1]
-    rango = datos[2]
+    alias, creditos, rango = datos
     bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        alias = datos[0]
-        creditos = datos[1]
-        rango = datos[2]
+        alias, creditos, rango = datos
         welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN\n🔑 Recargar: /claim CODIGO"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
