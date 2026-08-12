@@ -145,7 +145,7 @@ def check_user_access(message, cost=1):
         return True
         
     if creditos < cost:
-        bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
+        bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} creditos.")
         return False
         
     LAST_COMMAND_TIME[user_id] = current_time
@@ -302,7 +302,7 @@ def generate_cards(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "❌ Uso correcto: /gen 400022")
+            bot.reply_to(message, "❌ Uso correcto: /gen xxxxxx")
             return
         bin_number = "".join(bin_match)[:6]
         if len(bin_number) < 6:
@@ -334,7 +334,7 @@ def check_bin_standalone(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "❌ Uso correcto: /bin 400022")
+            bot.reply_to(message, "❌ Uso correcto: /bin xxxxxx")
             return
         bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
@@ -360,11 +360,11 @@ def check_card(message):
         input_data = message.text
         cards = re.findall(r'\d+', input_data)
         if len(cards) < 4:
-            bot.reply_to(message, "❌ Uso correcto: /chk CARD")
+            bot.reply_to(message, "❌ Uso correcto: /chk numero|MM|AA|CVV")
             return
         cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
-        status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
+        status = "✅ Valida" if is_luhn_valid else "❌ Invalida"
         bin_number = cc[:6]
         if bin_number in LOCAL_BINS:
             bin_data = LOCAL_BINS[bin_number]
