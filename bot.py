@@ -29,11 +29,13 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
+# 🔐 CORREGIDO: Parámetros 100% desglosados y limpios sin URLs completas para pg8000
+# Se utiliza el Host IPv4 compatible (.pooler) para saltar el bloqueo de Render
 def get_db_connection():
     return pg8000.connect(
         user="postgres",
         password="AdamFadlaneLara2021*",
-        host="://supabase.com",
+        host="db.csagfnnecsfilqlftkfa.pooler.supabase.com",
         port=5432,
         database="postgres"
     )
@@ -173,9 +175,8 @@ def register_user(message):
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
-    # CORREGIDO: Indexación de string pura para evitar fallos de lista en Supabase
     alias_deseado = args[-1]
-    if not re.match(r'^^[\w\d]+$', alias_deseado):
+    if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
         return
     if comprobar_alias_existe(alias_deseado):
@@ -194,7 +195,6 @@ def generate_key_admin(message):
         bot.reply_to(message, "✏️ Uso: /keygen cantidad_de_creditos")
         return
     try:
-        # CORREGIDO: Indexación numérico entero
         cantidad = int(args[-1])
         import string
         chars = string.ascii_uppercase + string.digits
@@ -215,13 +215,10 @@ def claim_key_user(message):
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
-    # CORREGIDO: Indexación de código limpio string
     key_solicitada = args[-1].upper()
     creditos_ganados = db_reclamar_key(key_solicitada)
     if creditos_ganados:
-        datos = verificar_registro(user_id)
-        alias = datos
-        creditos_viejos = datos
+        alias, creditos_viejos, rango = verificar_registro(user_id)
         valor_key = creditos_ganados
         nuevos_creditos = creditos_viejos + valor_key
         update_user_credits(user_id, nuevos_creditos)
