@@ -130,5 +130,5 @@ print("Bot encendido correctamente...")
 bot.remove_webhook()
 print("Bot encendido correctamente y libre de conflictos...")
 # skip_pending=True hace que el bot ignore los comandos antiguos acumulados durante el reinicio
-bot.infinity_polling(skip_pending=True)
+bot.infinity_polling()
 
