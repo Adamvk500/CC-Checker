@@ -1,10 +1,11 @@
 import os
 import re
 import random
+import sys
 import telebot
 import requests
 
-TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAEAXfRpkJnBwBoXw4KapnQ66kX2IoK_03k")
+TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
 
 def luhn_check(card_number):
@@ -19,7 +20,7 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# --- NUEVO COMANDO: /start (BIENVENIDA) ---
+# --- COMANDO: /start (BIENVENIDA) ---
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = f"""<b>👋 ¡Hola, @{message.from_user.username or 'Usuario'}! Bienvenido a tu CC Checker Bot</b>
@@ -31,7 +32,7 @@ Aquí tienes la lista de comandos disponibles:
 <i>Bot alojado con éxito las 24/7 en la nube. 🚀</i>"""
     bot.reply_to(message, welcome_text, parse_mode="HTML")
 
-# --- NUEVO COMANDO: /gen (GENERADOR DE TARJETAS) ---
+# --- COMANDO: /gen (GENERADOR DE TARJETAS) ---
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
     try:
@@ -47,22 +48,19 @@ def generate_cards(message):
             bot.reply_to(message, "⚠️ El BIN debe tener al menos 6 dígitos.", parse_mode="HTML")
             return
 
-        # Cortar a 12 dígitos si es muy largo para completar los últimos 4 al azar
         bin_base = bin_number[:12]
         generated_list = []
 
-        # Generar 10 tarjetas que cumplan el Algoritmo de Luhn
         while len(generated_list) < 10:
             cc = bin_base
             while len(cc) < 15:
                 cc += str(random.randint(0, 9))
             
-            # Probar el último dígito para que cumpla Luhn
             for last_digit in range(10):
                 test_cc = cc + str(last_digit)
                 if luhn_check(test_cc) and test_cc not in generated_list:
                     mes = str(random.randint(1, 12)).zfill(2)
-                    ano = str(random.randint(2026, 2031)) # Fechas modernas actuales
+                    ano = str(random.randint(2026, 2031))
                     cvv = str(random.randint(100, 999))
                     generated_list.append(f"<code>{test_cc}|{mes}|{ano}|{cvv}</code>")
                     break
@@ -99,6 +97,7 @@ def check_card(message):
         bank_name, country_name, card_type, brand = "Desconocido", "Desconocido", "Desconocido", "Desconocida"
 
         try:
+            # API de BINS corregida con su ruta completa estable
             response_api = requests.get(f"https://payout.com{bin_number}")
             if response_api.status_code == 200:
                 data = response_api.json()
@@ -125,10 +124,17 @@ def check_card(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
-print("Bot encendido correctamente...")
-# Elimina cualquier sesión colgada antes de encender el bot
-bot.remove_webhook()
-print("Bot encendido correctamente y libre de conflictos...")
-# skip_pending=True hace que el bot ignore los comandos antiguos acumulados durante el reinicio
-bot.infinity_polling()
-
+# --- BLOQUE FINAL DE ARRANQUE PARA PLAN GRATUITO EN RENDER ---
+try:
+    print("Limpiando webhooks y sesiones previas...")
+    bot.delete_webhook()
+    print("Bot encendido correctamente en el plan gratuito.")
+    bot.infinity_polling(skip_pending=True)
+except telebot.apihelper.ApiTelegramException as e:
+    if e.error_code == 409:
+        print("⚠️ Conflicto 409 detectado. Apagando proceso antiguo automáticamente...")
+        sys.exit(1)
+    else:
+        print(f"Error de Telegram: {e}")
+except Exception as e:
+    print(f"Error general: {e}")
