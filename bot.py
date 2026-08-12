@@ -3,6 +3,7 @@ import re
 import random
 import sys
 import time
+import sqlite3
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
@@ -16,14 +17,6 @@ def run_fake_server():
 
 Thread(target=run_fake_server, daemon=True).start()
 
-# --- BASE DE DATOS EN LA NUBE ---
-ADMIN_DB_ID = 5203992513  
-
-USER_ALIAS = {}    
-USER_CREDITS = {}  
-USER_RANK = {}     
-KEYS_DATABASE = {} 
-
 LAST_COMMAND_TIME = {} 
 
 LOCAL_BINS = {
@@ -36,67 +29,90 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-def sincronizar_desde_telegram():
-    print("Sincronizando base de datos desde Telegram...")
-    try:
-        updates = bot.get_chat_history(ADMIN_DB_ID, limit=5000)
-        for msg in reversed(list(updates)):
-            if msg.text:
-                if msg.text.startswith("REGISTRO"):
-                    partes = msg.text.split("|")
-                    uid = int(partes[1])
-                    alias = partes[2]
-                    USER_ALIAS[uid] = alias
-                    if uid not in USER_CREDITS: USER_CREDITS[uid] = 10
-                    if uid not in USER_RANK: USER_RANK[uid] = "Gratis"
-                
-                elif msg.text.startswith("CREDITOS"):
-                    partes = msg.text.split("|")
-                    uid = int(partes[1])
-                    creditos = int(partes[2])
-                    USER_CREDITS[uid] = creditos
-                
-                elif msg.text.startswith("KEYCREADA"):
-                    partes = msg.text.split("|")
-                    key = partes[1]
-                    valor = int(partes[2])
-                    KEYS_DATABASE[key] = valor
-                
-                elif msg.text.startswith("KEYUSADA"):
-                    partes = msg.text.split("|")
-                    key = partes[1]
-                    if key in KEYS_DATABASE:
-                        del KEYS_DATABASE[key]
-        print("Sincronizacion completada con exito.")
-    except Exception as e:
-        print(f"Aviso en sincronizacion: {e}")
+DB_FILE = "usuarios.db"
 
-def respaldar_registro(user_id, alias):
-    USER_ALIAS[user_id] = alias
-    USER_CREDITS[user_id] = 10
-    USER_RANK[user_id] = "Gratis"
-    try:
-        bot.send_message(ADMIN_DB_ID, f"REGISTRO|{user_id}|{alias.lower()}")
-    except: pass
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY,
+            alias_elegido TEXT UNIQUE,
+            telegram_username TEXT,
+            creditos INTEGER DEFAULT 0,
+            rango TEXT DEFAULT 'Gratis'
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS keys (
+            key_code TEXT PRIMARY KEY,
+            creditos_valor INTEGER,
+            estado TEXT DEFAULT 'Disponible'
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
-def respaldar_creditos(user_id, creditos):
-    USER_CREDITS[user_id] = creditos
-    try:
-        bot.send_message(ADMIN_DB_ID, f"CREDITOS|{user_id}|{creditos}")
-    except: pass
+init_db()
 
-def respaldar_nueva_key(key_code, cantidad):
-    KEYS_DATABASE[key_code] = cantidad
-    try:
-        bot.send_message(ADMIN_DB_ID, f"KEYCREADA|{key_code}|{cantidad}")
-    except: pass
+def verificar_registro(user_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT alias_elegido, creditos, rango FROM usuarios WHERE id = ?', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result
 
-def respaldar_key_usada(key_code):
-    if key_code in KEYS_DATABASE:
-        del KEYS_DATABASE[key_code]
-    try:
-        bot.send_message(ADMIN_DB_ID, f"KEYUSADA|{key_code}")
-    except: pass
+def comprobar_alias_existe(alias):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM usuarios WHERE alias_elegido = ?', (alias.lower(),))
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
+def registrar_usuario_manual(user_id, alias, tg_username):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO usuarios (id, alias_elegido, telegram_username, creditos) VALUES (?, ?, ?, ?)', 
+                   (user_id, alias.lower(), tg_username, 10))
+    conn.commit()
+    conn.close()
+
+def get_user_credits(user_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT creditos FROM usuarios WHERE id = ?', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result if result else 0
+
+def update_user_credits(user_id, nuevos_creditos):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET creditos = ? WHERE id = ?', (nuevos_creditos, user_id))
+    conn.commit()
+    conn.close()
+
+def db_guardar_key(codigo, cantidad):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO keys (key_code, creditos_valor) VALUES (?, ?)', (codigo, cantidad))
+    conn.commit()
+    conn.close()
+
+def db_reclamar_key(codigo):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT creditos_valor, estado FROM keys WHERE key_code = ?', (codigo,))
+    result = cursor.fetchone()
+    if result and result == 'Disponible':
+        cursor.execute('UPDATE keys SET estado = "Reclamada" WHERE key_code = ?', (codigo,))
+        conn.commit()
+        conn.close()
+        return result
+    conn.close()
+    return None
 
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
@@ -109,17 +125,19 @@ def check_user_access(message, cost=1):
             bot.reply_to(message, f"⏳ Calmate! Espera {time_left}s.")
             return False
 
-    if user_id not in USER_ALIAS:
+    datos_usuario = verificar_registro(user_id)
+    if not datos_usuario:
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre para obtener 10 creditos.")
         return False
         
-    creditos = USER_CREDITS.get(user_id, 0)
+    alias, creditos, rango = datos_usuario
+
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
         
     LAST_COMMAND_TIME[user_id] = current_time
-    respaldar_creditos(user_id, creditos - cost)
+    update_user_credits(user_id, creditos - cost)
     return True
 
 def luhn_check(card_number):
@@ -135,9 +153,10 @@ def luhn_check(card_number):
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
+    tg_username = message.from_user.username or 'Usuario'
     args = message.text.split()
     
-    if user_id in USER_ALIAS:
+    if verificar_registro(user_id):
         bot.reply_to(message, "❌ Ya estas registrado.")
         return
         
@@ -145,25 +164,24 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
         
-    # Corregido: Indexacion correcta [1] para leer strings
-    alias_deseado = args[1].lower()
+    alias_deseado = args
     
     if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
         return
 
-    if alias_deseado in USER_ALIAS.values():
+    if comprobar_alias_existe(alias_deseado):
         bot.reply_to(message, "⚠️ Ese nombre ya esta ocupado.")
         return
         
-    respaldar_registro(user_id, alias_deseado)
-    bot.reply_to(message, f"🎉 Registro Exitoso! Bienvenido {alias_deseado}. Recibiste 10 creditos.")
+    registrar_usuario_manual(user_id, alias_deseado, tg_username)
+    bot.reply_to(message, f"🎉 Registro Exitoso! Bienvenido {alias_deseado.lower()}. Recibiste 10 creditos.")
 
 @bot.message_handler(commands=['keygen'])
 def generate_key_admin(message):
     args = message.text.split()
     
-    if message.from_user.username != "Adam_vk_500" and message.from_user.id != ADMIN_DB_ID:
+    if message.from_user.username != "Adam_vk_500":
         bot.reply_to(message, "❌ No tienes permisos de administrador.")
         return
 
@@ -172,13 +190,12 @@ def generate_key_admin(message):
         return
 
     try:
-        # Corregido: Indexacion correcta [1] para leer enteros
-        cantidad = int(args[1])
+        cantidad = int(args[-1])
         import string
         chars = string.ascii_uppercase + string.digits
         codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
         
-        respaldar_nueva_key(codigo_random, cantidad)
+        db_guardar_key(codigo_random, cantidad)
         
         texto_admin = f"🔑 <b>KEY GENERADA CON ÉXITO</b>\n─────────────────────\n<b>Código:</b> <code>{codigo_random}</code>\n<b>Valor:</b> <code>{cantidad}</code> créditos 🪙\n─────────────────────\n<i>Puedes poner este código a la venta.</i>"
         bot.reply_to(message, texto_admin, parse_mode="HTML")
@@ -190,7 +207,7 @@ def claim_key_user(message):
     user_id = message.from_user.id
     args = message.text.split()
     
-    if user_id not in USER_ALIAS:
+    if not verificar_registro(user_id):
         bot.reply_to(message, "⚠️ Debes registrarte primero usando /register tu_nombre")
         return
 
@@ -198,41 +215,44 @@ def claim_key_user(message):
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
 
-    # Corregido: Indexacion correcta [1] para leer codigos
-    key_solicitada = args[1].upper()
+    key_solicitada = args[-1].upper()
+    creditos_ganados = db_reclamar_key(key_solicitada)
     
-    if key_solicitada in KEYS_DATABASE:
-        creditos_ganados = KEYS_DATABASE[key_solicitada]
-        respaldar_key_usada(key_solicitada)
+    if creditos_ganados:
+        alias, creditos_viejos, rango = verificar_registro(user_id)
+        nuevos_creditos = creditos_viejos + creditos_ganados
+        update_user_credits(user_id, nuevos_creditos)
         
-        creditos_viejos = USER_CREDITS.get(user_id, 0)
-        nuevos_creditos = creditos_viejos + credited_ganados if 'credited_ganados' in locals() else creditos_viejos + creditos_ganados
-        respaldar_creditos(user_id, nuevos_creditos)
-        
-        alias = USER_ALIAS[user_id]
         texto_exito = f"🎉 <b>¡Código Reclamado!</b>\n\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{creditos_ganados}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas."
         bot.reply_to(message, texto_exito, parse_mode="HTML")
     else:
         bot.reply_to(message, "❌ Código inválido o ya utilizado.")
 
+# 💾 NUEVO COMANDO DE RESPALDO EXCLUSIVO PARA TI
+@bot.message_handler(commands=['backup'])
+def send_backup_db(message):
+    if message.from_user.username != "Adam_vk_500": return
+    try:
+        # Te envia el archivo real usuarios.db directo a tu chat para que no pierdas nada
+        with open(DB_FILE, 'rb') as f:
+            bot.send_document(message.chat.id, f, caption="📦 ¡Aquí tienes tu Base de Datos real de respaldo!")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error al exportar: {e}")
+
 @bot.message_handler(commands=['credits', 'bal'])
 def show_credits(message):
-    user_id = message.from_user.id
-    if user_id not in USER_ALIAS:
+    datos = verificar_registro(message.from_user.id)
+    if not datos:
         bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
         return
-    alias = USER_ALIAS[user_id]
-    creditos = USER_CREDITS.get(user_id, 0)
-    rango = USER_RANK.get(user_id, "Gratis")
+    alias, creditos, rango = datos
     bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    user_id = message.from_user.id
-    if user_id in USER_ALIAS:
-        alias = USER_ALIAS[user_id]
-        creditos = USER_CREDITS.get(user_id, 0)
-        rango = USER_RANK.get(user_id, "Gratis")
+    datos = verificar_registro(message.from_user.id)
+    if datos:
+        alias, creditos, rango = datos
         welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN\n🔑 Recargar: /claim CODIGO"
     else:
         welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
@@ -265,7 +285,7 @@ def generate_cards(message):
                     generated_list.append(f"{test_cc}|{mes}|{ano}|{cvv}")
                     break
         cards_output = "\n".join(generated_list)
-        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {USER_CREDITS.get(message.from_user.id, 0)} creditos."
+        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)} creditos."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error al generar: {str(e)}")
@@ -291,7 +311,7 @@ def check_bin_standalone(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {USER_CREDITS.get(message.from_user.id, 0)}."
+        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)}."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
@@ -305,7 +325,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
+        cc, mes, ano, cvv = cards, cards, cards, cards
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
@@ -319,7 +339,7 @@ def check_card(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {USER_CREDITS.get(message.from_user.id, 0)}"
+        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)}"
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
@@ -328,8 +348,7 @@ while True:
     try:
         print("Limpiando webhooks...")
         bot.delete_webhook()
-        sincronizar_desde_telegram()
-        print("Bot Premium Nube encendido correctamente.")
+        print("Bot Premium Base de Datos encendido correctamente.")
         bot.infinity_polling(skip_pending=True)
     except telebot.apihelper.ApiTelegramException as e:
         if e.error_code == 409:
