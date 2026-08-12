@@ -6,6 +6,16 @@ import time
 import telebot
 import requests
 
+from threading import Thread
+from http.server import SimpleHTTPRequestHandler, HTTPServer
+
+# Servidor web falso para que Render se ponga en verde (Live)
+def run_fake_server():
+    server = HTTPServer(('0.0.0.0', 10000), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
+Thread(target=run_fake_server, daemon=True).start()
+
 # 1. Configuración del Token seguro
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
