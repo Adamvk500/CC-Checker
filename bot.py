@@ -40,7 +40,7 @@ def get_db_connection():
         user="postgres.csagfnnecsfilqlftkfa",
         password="AdamFadlaneLara2021*",
         ssl_context=contexto_ssl  
-
+     }
 
 def init_db():
     conn = get_db_connection()
