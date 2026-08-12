@@ -6,6 +6,7 @@ import time
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
+import requests
 
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
@@ -16,14 +17,12 @@ def run_fake_server():
 
 Thread(target=run_fake_server, daemon=True).start()
 
-# --- CONFIGURACIÓN DE LA BASE DE DATOS EN LA NUBE (TU CHAT PRIVADO) ---
-ADMIN_DB_ID = 5203992513  # Tu ID de Telegram para guardar los respaldos permanentes
+ADMIN_DB_ID = 5203992513  
 
-# Diccionarios en memoria temporales (se rellenan leyendo tu chat al arrancar)
-USER_ALIAS = {}    # {user_id: alias}
-USER_CREDITS = {}  # {user_id: creditos}
-USER_RANK = {}     # {user_id: rango}
-KEYS_DATABASE = {} # {key_code: creditos_valor}
+USER_ALIAS = {}    
+USER_CREDITS = {}  
+USER_RANK = {}     
+KEYS_DATABASE = {} 
 
 LAST_COMMAND_TIME = {} 
 
@@ -36,16 +35,13 @@ LOCAL_BINS = {
     "510510": {"brand": "Mastercard", "type": "Credit", "bank": "CAPITAL ONE", "country": "United States", "flag": "🇺🇸"},
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
+
 def sincronizar_desde_telegram():
-    """Lee el historial de tu chat privado para restaurar los datos al reiniciar el bot"""
     print("Sincronizando base de datos desde Telegram...")
     try:
-        # Recupera los ultimos 5000 mensajes de tu chat privado para reconstruir la base de datos
         updates = bot.get_chat_history(ADMIN_DB_ID, limit=5000)
-        # Los procesamos al reves (del mas viejo al mas nuevo) para mantener los saldos al dia
-        for msg in reversed(updates):
+        for msg in reversed(list(updates)):
             if msg.text:
-                # REGLA 1: Restaurar Registro de Usuario
                 if msg.text.startswith("💾_REGISTRO_"):
                     partes = msg.text.split("|")
                     uid = int(partes[1])
@@ -54,21 +50,18 @@ def sincronizar_desde_telegram():
                     if uid not in USER_CREDITS: USER_CREDITS[uid] = 10
                     if uid not in USER_RANK: USER_RANK[uid] = "Gratis"
                 
-                # REGLA 2: Restaurar Creditos
                 elif msg.text.startswith("💾_CREDITOS_"):
                     partes = msg.text.split("|")
                     uid = int(partes[1])
                     creditos = int(partes[2])
                     USER_CREDITS[uid] = creditos
                 
-                # REGLA 3: Restaurar Keys creadas
                 elif msg.text.startswith("💾_KEYCREADA_"):
                     partes = msg.text.split("|")
                     key = partes[1]
                     valor = int(partes[2])
                     KEYS_DATABASE[key] = valor
                 
-                # REGLA 4: Borrar Keys reclamadas
                 elif msg.text.startswith("💾_KEYUSADA_"):
                     partes = msg.text.split("|")
                     key = partes[1]
@@ -76,7 +69,7 @@ def sincronizar_desde_telegram():
                         del KEYS_DATABASE[key]
         print("Sincronizacion completada con exito.")
     except Exception as e:
-        print(f"Aviso en sincronizacion (Es normal si el chat esta vacio): {e}")
+        print(f"Aviso en sincronizacion: {e}")
 
 def respaldar_registro(user_id, alias):
     USER_ALIAS[user_id] = alias
@@ -152,7 +145,7 @@ def register_user(message):
         bot.reply_to(message, "✏️ Uso: /register tu_nombre")
         return
         
-    alias_deseado = args.lower()
+    alias_deseado = args[1].lower()
     
     if not re.match(r'^[\w\d]+$', alias_deseado):
         bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
@@ -178,7 +171,7 @@ def generate_key_admin(message):
         return
 
     try:
-        cantidad = int(args)
+        cantidad = int(args[1])
         import string
         chars = string.ascii_uppercase + string.digits
         codigo_random = "ADAM-" + "".join(random.choice(chars) for _ in range(12))
@@ -203,7 +196,7 @@ def claim_key_user(message):
         bot.reply_to(message, "✏️ Uso: /claim ADAM-CODIGO")
         return
 
-    key_solicitada = args.upper()
+    key_solicitada = args[1].upper()
     
     if key_solicitada in KEYS_DATABASE:
         creditos_ganados = KEYS_DATABASE[key_solicitada]
@@ -309,7 +302,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
-        cc, mes, ano, cvv = cards, cards, cards, cards
+        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
@@ -328,12 +321,10 @@ def check_card(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
-# --- ARRANQUE AUTOMÁTICO DE SEGURIDAD ---
 while True:
     try:
         print("Limpiando webhooks...")
         bot.delete_webhook()
-        # Primero lee tu chat privado para cargar las cuentas guardadas
         sincronizar_desde_telegram()
         print("Bot Premium Nube encendido correctamente.")
         bot.infinity_polling(skip_pending=True)
