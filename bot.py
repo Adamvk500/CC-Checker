@@ -6,7 +6,6 @@ import time
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
-import requests
 
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
 bot = telebot.TeleBot(TOKEN)
@@ -19,6 +18,16 @@ Thread(target=run_fake_server, daemon=True).start()
 
 USER_CREDITS = {}      
 LAST_COMMAND_TIME = {} 
+
+LOCAL_BINS = {
+    "400022": {"brand": "Visa", "type": "Credit", "bank": "CHASE BANK", "country": "United States", "flag": "🇺🇸"},
+    "510510": {"brand": "Mastercard", "type": "Credit", "bank": "CAPITAL ONE", "country": "United States", "flag": "🇺🇸"},
+    "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"},
+    "455655": {"brand": "Visa", "type": "Debit", "bank": "BBVA BANCOMER", "country": "Mexico", "flag": "🇲🇽"},
+    "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "🇪🇸"},
+    "541275": {"brand": "Mastercard", "type": "Credit", "bank": "CITIBANK", "country": "United States", "flag": "🇺🇸"},
+    "400000": {"brand": "Visa", "type": "Debit", "bank": "SANTANDER RIO", "country": "Argentina", "flag": "🇦🇷"},
+}
 
 def luhn_check(card_number):
     total = 0
@@ -65,8 +74,7 @@ def add_credits_admin(message):
             bot.reply_to(message, "✏️ Uso: <code>/add @username_o_id cantidad</code>", parse_mode="HTML")
             return
             
-        amount = int(args[2])
-        
+        amount = int(args[-1])
         if message.reply_to_message:
             target_id = message.reply_to_message.from_user.id
             USER_CREDITS[target_id] = get_user_credits(target_id) + amount
@@ -148,18 +156,16 @@ def check_bin_standalone(message):
         bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
         
-        url = f"https://binlist.net/{bin_number}"
-        response_api = requests.get(url, headers={'Accept-Version': '3'}, timeout=10)
-        
-        brand, card_type, bank_name, country_name, flag = "Desconocida", "Desconocido", "Desconocido", "Desconocido", "🏳️‍🌈"
-
-        if response_api.status_code == 200:
-            data = response_api.json()
-            brand = data.get("scheme", "Desconocida").capitalize()
-            card_type = data.get("type", "Desconocido").capitalize()
-            bank_name = data.get("bank", {}).get("name", "Desconocido").upper()
-            country_name = data.get("country", {}).get("name", "Desconocido")
-            flag = data.get("country", {}).get("emoji", "🏳️‍🌈")
+        if bin_number in LOCAL_BINS:
+            bin_data = LOCAL_BINS[bin_number]
+            brand = bin_data["brand"]
+            card_type = bin_data["type"]
+            bank_name = bin_data["bank"]
+            country_name = bin_data["country"]
+            flag = bin_data["flag"]
+        else:
+            brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
+            card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENÉRICO", "Desconocido", "🏳️‍🌈"
 
         response = f"""<b>🔍 Información del BIN [<code>{bin_number}</code>]</b>
 ──────────────────
@@ -184,34 +190,22 @@ def check_card(message):
             bot.reply_to(message, "❌ <b>Formato incorrecto.</b>\nUsa: <code>/chk CC|MES|AÑO|CVV</code>", parse_mode="HTML")
             return
             
-        cc = cards[0]
-        mes = cards[1]
-        ano = cards[2]
-        cvv = cards[3]
-        
-        if len(cc) < 15 or len(cc) > 16 or len(mes) != 2 or len(cvv) < 3:
-            bot.reply_to(message, "❌ <b>Error:</b> Componentes de tarjeta inválidos.", parse_mode="HTML")
-            return
+        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
 
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Formato Válido (Luhn Pass)" if is_luhn_valid else "🔴 Formato Inválido (Luhn Fail)"
 
         bin_number = cc[:6]
-        brand, card_type, bank_name, country_name, flag = "Desconocida", "Desconocido", "Desconocido", "Desconocido", "🏳️‍🌈"
-
-        try:
-            url = f"https://binlist.net{bin_number}"
-            response_api = requests.get(url, headers={'Accept-Version': '3'}, timeout=10)
-            if response_api.status_code == 200:
-                data = response_api.json()
-                brand = data.get("scheme", "Desconocida").capitalize()
-                card_type = data.get("type", "Desconocido").capitalize()
-                bank_name = data.get("bank", {}).get("name", "Desconocido").upper()
-                country_name = data.get("country", {}).get("name", "Desconocido")
-                flag = data.get("country", {}).get("emoji", "🏳️‍🌈")
-        except:
-            if cc.startswith('4'): brand = "Visa"
-            elif cc.startswith(('51', '52', '53', '54', '55')): brand = "Mastercard"
+        if bin_number in LOCAL_BINS:
+            bin_data = LOCAL_BINS[bin_number]
+            brand = bin_data["brand"]
+            card_type = bin_data["type"]
+            bank_name = bin_data["bank"]
+            country_name = bin_data["country"]
+            flag = bin_data["flag"]
+        else:
+            brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
+            card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENÉRICO", "Desconocido", "🏳️‍🌈"
 
         response = f"""<b>💳 CC Checker Bot Premium v3.0</b>
 ──────────────────
