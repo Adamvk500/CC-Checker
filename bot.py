@@ -168,8 +168,9 @@ def update_user_staff_status(user_id, nivel_staff):
     cursor.execute('UPDATE usuarios SET es_staff = %s WHERE id = %s', (nivel_staff, user_id))
     conn.commit()
     cursor.close()
-    conn.close()
-# PARTE 2: FILTRO DE ACCESO ANTIFLOOD, CONTROL DE ENTRADA Y COMANDO DE CONTROL PARA ENLACES DE INVITACIÓN
+    conn.close()# ==========================================
+# # PARTE 2: GATEWAY DE TIEMPOS, REGLAS ALGORÍTMICAS Y GRABADOR INTELIGENTE DE CANALES DE STAFF
+# ==========================================
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
@@ -184,7 +185,7 @@ def check_user_access(message, cost=1):
         
     alias, creditos, rango, ultimo_uso, es_staff, grupo_origen = datos_usuario
     
-    # 👑 AUTOMÁTICO: Memoriza el ID de este chat actual para saber a dónde mandar las respuestas de Bizum luego
+    # Memoriza de dónde viene interactuando el cliente para saber a dónde responderle el Bizum luego
     if chat_id != user_id and chat_id != recuperar_grupo_staff_db():
         vincular_grupo_usuario(user_id, chat_id)
 
@@ -218,7 +219,7 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# 👑 NUEVO COMANDO: /joingroup (Usa el enlace de invitación para unirse de forma segura y enrutar las alertas)
+# 👑 CORREGIDO: Uso de join_chat_by_invite_link para la librería pyTelegramBotAPI
 @bot.message_handler(commands=['joingroup'])
 def join_external_group_owner(message):
     user_id = message.from_user.id
@@ -229,20 +230,18 @@ def join_external_group_owner(message):
         return
     link = args[-1]
     bot.reply_to(message, "📥 Procesando token de invitación e ingresando al canal objetivo de forma automatizada...")
-    # Bloque nativo para forzar la entrada del bot por API legítima de Telegram
     try:
-        bot.join_chat(link)
+        # Método oficial síncrono corregido
+        bot.join_chat_by_invite_link(link)
         bot.reply_to(message, "✅ <b>Ingreso Exitoso.</b> El bot se ha vinculado al grupo del cliente y la memoria de enrutamiento está activa.", parse_mode="HTML")
     except Exception as e:
         bot.reply_to(message, f"❌ Error de protocolo al validar el enlace de Telegram: {e}")
 
-# 👑 CORTAFUEGOS ADICIONAL: Si intentan meter al bot de forma manual en un grupo extraño, el bot se sale solo automáticamente
 @bot.message_handler(content_types=['new_chat_members'])
 def automatic_kick_unauthorized_groups(message):
     for member in message.new_chat_members:
         if member.id == bot.get_me().id:
             grupo_staff = recuperar_grupo_staff_db()
-            # Si no es el grupo de Staff verificado por ti, el bot abandona el grupo de inmediato
             if message.chat.id != grupo_staff:
                 try:
                     bot.send_message(message.chat.id, "❌ <b>Acceso Restringido.</b> Este bot requiere activación e ingreso mediante comando de Staff Supremo.")
@@ -255,6 +254,7 @@ def auto_save_group_channel(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     guardar_grupo_staff_db(message.chat.id)
     bot.reply_to(message, f"🎯 <b>¡GRUPO DE STAFF CONFIGURADO!</b>\nLas notificaciones del administrador caerán aquí.", parse_mode="HTML")
+
 # PARTE 3: ACCIONES SUPREMAS DE CONTROL, INYECTOR DE CRÉDITOS Y CONTROL DE RESOLUCIÓN BIZUM INTER-GRUPO
 @bot.message_handler(commands=['aprobar_bizum'])
 def approve_bizum_ticket(message):
