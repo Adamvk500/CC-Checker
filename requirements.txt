@@ -1,2 +1,3 @@
 pyTelegramBotAPI
 pg8000
+fake-useragent
