@@ -4,6 +4,7 @@ import random
 import sys
 import time
 import ssl  
+from datetime import datetime
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
@@ -43,6 +44,7 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Tabla de Usuarios
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id BIGINT PRIMARY KEY,
@@ -52,11 +54,20 @@ def init_db():
             rango TEXT DEFAULT 'Gratis'
         )
     ''')
-    # MODIFICADO: Forzar la creación de la columna de tiempo persistente si no existe en Supabase
     try:
         cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_uso DOUBLE PRECISION DEFAULT 0')
-    except:
-        pass
+    except: pass
+    
+    # MODIFICADO: Creación automática de la tabla de Logs Forenses en Supabase
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS logs_auditoria (
+            id SERIAL PRIMARY KEY,
+            fecha_hora TEXT,
+            user_id BIGINT,
+            alias TEXT,
+            comando TEXT
+        )
+    ''')
     conn.commit()
     cursor.close()
     conn.close()
@@ -66,12 +77,28 @@ init_db()
 def verificar_registro(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    # MODIFICADO: Extraer también la marca de tiempo de la base de datos
     cursor.execute('SELECT alias_elegido, creditos, rango, ultimo_uso FROM usuarios WHERE id = %s', (user_id,))
     result = cursor.fetchone()
     cursor.close()
     conn.close()
     return result
+
+# NUEVA: Función de ciberseguridad para registrar eventos en la nube
+def registrar_log_evento(user_id, comando_texto):
+    try:
+        datos = verificar_registro(user_id)
+        alias_usuario = datos[0] if datos else "No_Registrado"
+        fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO logs_auditoria (fecha_hora, user_id, alias, comando) VALUES (%s, %s, %s, %s)', 
+                       (fecha_actual, user_id, alias_usuario, comando_texto))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except:
+        pass
 
 def comprobar_alias_existe(alias):
     conn = get_db_connection()
@@ -107,7 +134,6 @@ def update_user_rank(user_id, nuevo_rango):
     cursor.close()
     conn.close()
 
-# NUEVA: Función persistente para clavar la marca de tiempo en Supabase
 def update_user_timestamp(user_id, timestamp):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -123,7 +149,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result[0] if result else 0
+    return result if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
@@ -132,10 +158,12 @@ def update_user_credits(user_id, nuevos_creditos):
     conn.commit()
     cursor.close()
     conn.close()
-# 🛡️ CORTAFUEGOS INDESTRUCTIBLE: El cooldown lee y escribe directo en Supabase para evitar fugas por hilos paralelos
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
+    
+    # MODIFICADO: Guarda un registro forense automático en Supabase de lo que escribe el usuario
+    registrar_log_evento(user_id, message.text)
     
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
@@ -145,22 +173,19 @@ def check_user_access(message, cost=1):
     alias = datos_usuario[0]
     creditos = datos_usuario[1]
     rango = datos_usuario[2]
-    ultimo_uso = datos_usuario[3] or 0.0  # Lee el float persistente de internet
+    ultimo_uso = datos_usuario[3] or 0.0  
 
     if rango == "Baneado":
         return False
 
-    # ⏳ CONTROL DE TIEMPO HARDWARE: Si la diferencia en Supabase es menor a 3 segundos, frena en seco
     tiempo_transcurrido = current_time - ultimo_uso
     if tiempo_transcurrido < 3:
         segundos_restantes = 3 - int(tiempo_transcurrido)
         bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
         return False
 
-    # Escribe el nuevo tiempo en Supabase antes de dar acceso al comando
     update_user_timestamp(user_id, current_time)
 
-    # Bypass VIP condicionado al tiempo estricto superior
     if rango == "VIP":
         return True
         
@@ -181,6 +206,7 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+
 
 
 @bot.message_handler(commands=['panel', 'admin'])
