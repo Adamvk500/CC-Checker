@@ -446,6 +446,7 @@ def verify_blockchain_tx(message):
     update_user_credits(user_id, datos_usuario[1] + 200)
     bot.reply_to(message, f"🎉 ¡PAGO VERIFICADO! +200 créditos.")
 
+# 🇪🇸 TICKET DE BIZUM CORREGIDO (Fuerza el envío al grupo de Staff compartido)
 @bot.message_handler(commands=['claim_bizum'])
 def claim_bizum_ticket(message):
     user_id = message.from_user.id
@@ -454,8 +455,22 @@ def claim_bizum_ticket(message):
     if not datos_usuario or len(args) < 2: return
     codigo_operacion = args[-1]
     bot.reply_to(message, "⏳ Ticket enviado al Staff... Esperando verificación bancaria.")
-    texto_alerta_admin = f"🚨 <b>BIZUM RECIBIDO</b>\n👤 Cliente: {datos_usuario[0]} (ID: <code>{user_id}</code>)\n🔢 Ticket: <code>{codigo_operacion}</code>\n💡 Aprobar con:\n<code>/aprobar_bizum {user_id} 100</code>"
-    bot.send_message(5203992513, texto_alerta_admin, parse_mode="HTML")
+    
+    texto_alerta_admin = (
+        f"🚨 <b>BIZUM RECIBIDO</b>\n"
+        f"─────────────────────\n"
+        f"👤 Cliente: {datos_usuario[0]} (ID: <code>{user_id}</code>)\n"
+        f"🔢 Ticket: <code>{codigo_operacion}</code>\n"
+        f"─────────────────────\n"
+        f"💡 <b>Aprobar con:</b>\n"
+        f"<code>/aprobar_bizum {user_id} 100</code>"
+    )
+    # 🔐 CAMBIA EL RELLENO DE ABAJO: Pon el número de tu grupo con el signo menos delante (Ej: -10021345678)
+    id_de_tu_grupo = ID_DE_TU_GRUPO
+    try:
+        bot.send_message(id_de_tu_grupo, texto_alerta_admin, parse_mode="HTML")
+    except Exception as e:
+        print(f"Error al enviar alerta al grupo: {e}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
@@ -508,7 +523,6 @@ def check_card(message):
         if len(cards) < 4: 
             bot.reply_to(message, "❌ Uso incorrecto. Formato: /chk CARD|MM|AA|CVV")
             return
-        # 👑 CORREGIDO: Asignación limpia indexada individual de strings pura para pg8000
         cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
@@ -524,7 +538,6 @@ def check_card(message):
 while True:
     try:
         bot.delete_webhook()
-        print("Bot Premium Supabase conectado correctamente.")
         bot.infinity_polling(skip_pending=True)
     except telebot.apihelper.ApiTelegramException as e:
         if e.error_code == 409: time.sleep(10)
