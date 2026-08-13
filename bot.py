@@ -167,13 +167,12 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
-# 🛡️ CORTAFUEGOS DEFINITIVO: Cooldown estricto de 3 segundos forzado en memoria global síncrona
+# 🛡️ CORTAFUEGOS DE ALTA PRIORIDAD: El cooldown de 3 segundos va ANTES que el bypass VIP
 def check_user_access(message, cost=1):
-    global LAST_COMMAND_TIME
     user_id = message.from_user.id
     current_time = time.time()
     
-    # 1. Verificar registro en Supabase
+    # 1. Verificar registro en la base de datos de Supabase
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
@@ -186,7 +185,7 @@ def check_user_access(message, cost=1):
     if rango == "Baneado":
         return False
 
-    # 2. Comprobación matemática forzada del cortafuegos de tiempo
+    # 2. CONTROL DE TIEMPO (Máxima Prioridad: Afecta a Gratis y a VIPs por igual)
     if 'LAST_COMMAND_TIME' not in globals():
         globals()['LAST_COMMAND_TIME'] = {}
 
@@ -197,13 +196,14 @@ def check_user_access(message, cost=1):
             bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
             return False
 
-    # Guardar de forma persistente en el core global
+    # Guardar de forma persistente la marca de tiempo actual en la raíz del proceso
     globals()['LAST_COMMAND_TIME'][user_id] = current_time
 
-    # 3. Reglas de rangos
+    # 3. BYPASS VIP (Pase libre de créditos, pero respetando los 3 segundos de arriba)
     if rango == "VIP":
         return True
         
+    # 4. Cobro de monedas para usuarios normales
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
