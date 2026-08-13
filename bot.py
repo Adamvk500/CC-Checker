@@ -505,8 +505,11 @@ def check_card(message):
     try:
         input_data = message.text
         cards = re.findall(r'\d+', input_data)
-        if len(cards) < 4: return
-        cc, mes, ano, cvv = cards, cards, cards, cards
+        if len(cards) < 4: 
+            bot.reply_to(message, "❌ Uso incorrecto. Formato: /chk CARD|MM|AA|CVV")
+            return
+        # 👑 CORREGIDO: Asignación limpia indexada individual de strings pura para pg8000
+        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
