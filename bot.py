@@ -167,32 +167,40 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
-# 🛡️ MIDDLEWARE: Temporizador estricto de 3 segundos por comando
+# 🛡️ CORTAFUEGOS DEFINITIVO: Cooldown estricto de 3 segundos forzado en memoria global síncrona
 def check_user_access(message, cost=1):
+    global LAST_COMMAND_TIME
     user_id = message.from_user.id
     current_time = time.time()
     
+    # 1. Verificar registro en Supabase
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
         
-    alias = datos_usuario[0]
-    creditos = datos_usuario[1]
-    rango = datos_usuario[2]
+    alias = datos_usuario
+    creditos = datos_usuario
+    rango = datos_usuario
     
     if rango == "Baneado":
         return False
 
-    if user_id in LAST_COMMAND_TIME:
-        tiempo_transcurrido = current_time - LAST_COMMAND_TIME[user_id]
+    # 2. Comprobación matemática forzada del cortafuegos de tiempo
+    if 'LAST_COMMAND_TIME' not in globals():
+        globals()['LAST_COMMAND_TIME'] = {}
+
+    if user_id in globals()['LAST_COMMAND_TIME']:
+        tiempo_transcurrido = current_time - globals()['LAST_COMMAND_TIME'][user_id]
         if tiempo_transcurrido < 3:
             segundos_restantes = 3 - int(tiempo_transcurrido)
             bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
             return False
 
-    LAST_COMMAND_TIME[user_id] = current_time
+    # Guardar de forma persistente en el core global
+    globals()['LAST_COMMAND_TIME'][user_id] = current_time
 
+    # 3. Reglas de rangos
     if rango == "VIP":
         return True
         
@@ -213,6 +221,7 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
+
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
     user_id = message.from_user.id
