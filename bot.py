@@ -331,7 +331,9 @@ def delete_user_admin(message):
         target_id = message.reply_to_message.from_user.id
         datos_cliente = verificar_registro(target_id)
         if datos_cliente: eliminar_usuario_db(target_id)
-# PARTE 4: COMANDOS PÚBLICOS DE USUARIOS, MANEJADOR DE BOTONES INLINE Y INFINITY POLLING
+# ==========================================
+# # PARTE 4: COMANDOS PÚBLICOS DE USUARIOS, MANEJADOR DE BOTONES INLINE Y INFINITY POLLING
+# ==========================================
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
@@ -349,29 +351,40 @@ def register_user(message):
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos: return
-    bot.reply_to(message, f"👤 Alias: <code>{datos}</code> | 🪙 Monedas: <code>{datos}</code>", parse_mode="HTML")
+    # 👑 DESCOMPRESIÓN: Extraemos cada elemento usando su índice numérico exacto de la lista de Supabase
+    alias = datos[0]
+    creditos = datos[1]
+    rango = datos[2]
+    bot.reply_to(message, f"👤 <b>CUENTA</b>\n👤 Alias: <code>{alias}</code>\n🪙 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <b>{rango}</b>", parse_mode="HTML")
 
-# 🏛️ REQUERIMIENTO: Rediseño del /start con un Menú General Minimalista de Botones Inline reales
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        # 👑 Creamos el contenedor de la botonera gráfica interactiva
+        # 👑 DESCOMPRESIÓN: Extraemos cada elemento individual limpio sin arrastrar la lista entera
+        alias = datos[0]
+        creditos = datos[1]
+        rango = datos[2]
+        
+        # Generación limpia de la botonera inline minimalista
         markup = InlineKeyboardMarkup()
-        # Definimos los botones generales minimalistas vinculándolos a palabras clave internas
         btn_comandos = InlineKeyboardButton("📚 Ver Herramientas", callback_data="abrir_menu_comandos")
         btn_recargar = InlineKeyboardButton("💳 Comprar Créditos", callback_data="abrir_menu_recargar")
-        # Inyectamos los botones alineados horizontalmente de forma limpia
         markup.add(btn_comandos, btn_recargar)
         
-        bot.reply_to(message, f"👋 <b>¡Hola de nuevo, {datos}!</b>\n\n👑 Bienvenido a la central de simulación.\n🪙 Saldo: <code>{datos}</code> créditos\n🔰 Rango: <code>{datos}</code>\n\n👇 <i>Selecciona una opción del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
+        bot.reply_to(message, f"👋 <b>¡Hola de nuevo, {alias}!</b>\n\n👑 Bienvenido a la central de simulación.\n🌕 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <code>{rango}</code>\n\n👇 <i>Selecciona una opción del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
     else:
-        bot.reply_to(message, "👋 <b>¡BIENVENIDO!</b>\n🛡️ Para comenzar, créate un perfil de usuario escribiendo:\n<code>/register tu_nombre</code>", parse_mode="HTML")
+        bot.reply_to(message, "👋 <b>¡BIENVENIDO!</b>\n🛡️ Regístrate con: <code>/register tu_nombre</code>", parse_mode="HTML")
 
-# 🤖 ESCUCHA CALLBACKS: Lee en tiempo real qué botón ha pulsado el cliente y ejecuta la orden
+# 🤖 CORREGIDO: Escucha de eventos gráficos que procesa el click y responde de forma nativa e interactiva
 @bot.callback_query_handler(func=lambda call: True)
 def callback_listener_buttons(call):
-    # Forzamos al bot a leer el evento como si fuera un mensaje del usuario
+    # Avisa a la API de Telegram que el click ha sido recibido con éxito para quitar el reloj de arena del botón
+    try:
+        bot.answer_callback_query(call.id)
+    except: pass
+    
+    # Redirige de forma dinámica la acción según el botón pulsado
     if call.data == "abrir_menu_comandos":
         show_public_commands(call.message)
     elif call.data == "abrir_menu_recargar":
@@ -387,7 +400,6 @@ def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): return
     bot.reply_to(message, f"💳 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
-# 📢 NUEVO COMANDO: /soporte (Permite al usuario contactar directamente al grupo de Staff)
 @bot.message_handler(commands=['soporte', 'contact', 'ticket'])
 def contact_support_team(message):
     user_id = message.from_user.id
@@ -396,23 +408,15 @@ def contact_support_team(message):
     if not datos_usuario: return
     
     if len(args) < 2:
-        bot.reply_to(message, "✏️ <b>Uso correcto:</b> <code>/soporte Hola, tengo un problema con mi recarga...</code>", parse_mode="HTML")
+        bot.reply_to(message, "✏️ <b>Uso correcto:</b> <code>/soporte Tu mensaje aquí</code>", parse_mode="HTML")
         return
         
     mensaje_soporte = args[-1]
-    bot.reply_to(message, "📥 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia. Te responderemos lo antes posible.", parse_mode="HTML")
+    alias = datos_usuario[0]
+    bot.reply_to(message, "📥 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
     
-    # Redirige el reporte al búnker del staff del comando /setgrupo
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
-    
-    texto_soporte_staff = (
-        f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n"
-        f"─────────────────────\n"
-        f"👤 Usuario: <code>{datos_usuario}</code> (ID: <code>{user_id}</code>)\n"
-        f"💬 Mensaje: <i>{mensaje_soporte}</i>\n"
-        f"─────────────────────\n"
-        f"💡 <i>Puedes responderle directamente abriendo su chat privado o usando un broadcast.</i>"
-    )
+    texto_soporte_staff = f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n💬 Mensaje: <i>{mensaje_soporte}</i>"
     try: bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
     except: pass
 
@@ -422,13 +426,17 @@ def claim_bizum_ticket(message):
     args = message.text.split()
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario or len(args) < 2: return
+    
     codigo_operacion = args[-1]
     chat_origen_exacto = message.chat.id
+    alias = datos_usuario[0]
+    
     bot.reply_to(message, "⏳ Ticket enviado al Staff... Esperando verificación bancaria.")
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
+    
     texto_alerta_admin = (
         f"🚨 <b>BIZUM RECIBIDO</b>\n─────────────────────\n"
-        f"👤 Cliente: {datos_usuario} (ID: <code>{user_id}</code>)\n"
+        f"👤 Cliente: {alias} (ID: <code>{user_id}</code>)\n"
         f"🔢 Ticket: <code>{codigo_operacion}</code>\n"
         f"⛓️ Chat Origen: <code>{chat_origen_exacto}</code>\n─────────────────────\n"
         f"💡 <b>Copiar resolución:</b>\n"
