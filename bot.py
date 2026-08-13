@@ -18,9 +18,6 @@ def run_fake_server():
 
 Thread(target=run_fake_server, daemon=True).start()
 
-# ⏰ MANDATORIO: Diccionario global de memoria del reloj para el cooldown de 3 segundos
-LAST_COMMAND_TIME = {} 
-
 LOCAL_BINS = {
     "522205": {"brand": "Mastercard", "type": "Debit", "bank": "IMAGIN", "country": "Spain", "flag": "🇪🇸"},
     "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "🇪🇸"},
@@ -31,11 +28,10 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 👑 TU NUEVA CONFIGURACIÓN ACTUALIZADA (100% Funcional sin bloqueos)
 def get_db_connection():
     contexto_ssl = ssl._create_unverified_context()
     return pg8000.connect(
-        host="aws-1-eu-west-1.pooler.supabase.com",
+        host="://supabase.com",
         port=5432,
         database="postgres",
         user="postgres.csagfnnecsfilqlftkfa",
@@ -55,6 +51,11 @@ def init_db():
             rango TEXT DEFAULT 'Gratis'
         )
     ''')
+    # MODIFICADO: Forzar la creación de la columna de tiempo persistente si no existe en Supabase
+    try:
+        cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_uso DOUBLE PRECISION DEFAULT 0')
+    except:
+        pass
     conn.commit()
     cursor.close()
     conn.close()
@@ -64,7 +65,8 @@ init_db()
 def verificar_registro(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT alias_elegido, creditos, rango FROM usuarios WHERE id = %s', (user_id,))
+    # MODIFICADO: Extraer también la marca de tiempo de la base de datos
+    cursor.execute('SELECT alias_elegido, creditos, rango, ultimo_uso FROM usuarios WHERE id = %s', (user_id,))
     result = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -82,7 +84,7 @@ def comprobar_alias_existe(alias):
 def registrar_usuario_manual(user_id, alias, tg_username):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO usuarios (id, alias_elegido, telegram_username, creditos) VALUES (%s, %s, %s, 10) ON CONFLICT (id) DO NOTHING', 
+    cursor.execute('INSERT INTO usuarios (id, alias_elegido, telegram_username, creditos, ultimo_uso) VALUES (%s, %s, %s, 10, 0) ON CONFLICT (id) DO NOTHING', 
                    (user_id, alias.lower(), tg_username))
     conn.commit()
     cursor.close()
@@ -104,6 +106,15 @@ def update_user_rank(user_id, nuevo_rango):
     cursor.close()
     conn.close()
 
+# NUEVA: Función persistente para clavar la marca de tiempo en Supabase
+def update_user_timestamp(user_id, timestamp):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET ultimo_uso = %s WHERE id = %s', (timestamp, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def get_user_credits(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -120,7 +131,7 @@ def update_user_credits(user_id, nuevos_creditos):
     conn.commit()
     cursor.close()
     conn.close()
-
+# 🛡️ CORTAFUEGOS INDESTRUCTIBLE: El cooldown lee y escribe directo en Supabase para evitar fugas por hilos paralelos
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
@@ -133,20 +144,22 @@ def check_user_access(message, cost=1):
     alias = datos_usuario[0]
     creditos = datos_usuario[1]
     rango = datos_usuario[2]
-    
+    ultimo_uso = datos_usuario[3] or 0.0  # Lee el float persistente de internet
+
     if rango == "Baneado":
         return False
 
-    # ⏳ CORREGIDO: Verificación de cooldown matemática estricta usando el reloj global restablecido
-    if user_id in LAST_COMMAND_TIME:
-        tiempo_transcurrido = current_time - LAST_COMMAND_TIME[user_id]
-        if tiempo_transcurrido < 3:
-            segundos_restantes = 3 - int(tiempo_transcurrido)
-            bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
-            return False
+    # ⏳ CONTROL DE TIEMPO HARDWARE: Si la diferencia en Supabase es menor a 3 segundos, frena en seco
+    tiempo_transcurrido = current_time - ultimo_uso
+    if tiempo_transcurrido < 3:
+        segundos_restantes = 3 - int(tiempo_transcurrido)
+        bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
+        return False
 
-    LAST_COMMAND_TIME[user_id] = current_time
+    # Escribe el nuevo tiempo en Supabase antes de dar acceso al comando
+    update_user_timestamp(user_id, current_time)
 
+    # Bypass VIP condicionado al tiempo estricto superior
     if rango == "VIP":
         return True
         
@@ -167,60 +180,7 @@ def luhn_check(card_number):
             if n > 9: n -= 9
         total += n
     return total % 10 == 0
-# 🛡️ CORTAFUEGOS DE ALTA PRIORIDAD: El cooldown de 3 segundos va ANTES que el bypass VIP
-def check_user_access(message, cost=1):
-    user_id = message.from_user.id
-    current_time = time.time()
-    
-    # 1. Verificar registro en la base de datos de Supabase
-    datos_usuario = verificar_registro(user_id)
-    if not datos_usuario:
-        bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
-        return False
-        
-    alias = datos_usuario
-    creditos = datos_usuario
-    rango = datos_usuario
-    
-    if rango == "Baneado":
-        return False
 
-    # 2. CONTROL DE TIEMPO (Máxima Prioridad: Afecta a Gratis y a VIPs por igual)
-    if 'LAST_COMMAND_TIME' not in globals():
-        globals()['LAST_COMMAND_TIME'] = {}
-
-    if user_id in globals()['LAST_COMMAND_TIME']:
-        tiempo_transcurrido = current_time - globals()['LAST_COMMAND_TIME'][user_id]
-        if tiempo_transcurrido < 3:
-            segundos_restantes = 3 - int(tiempo_transcurrido)
-            bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
-            return False
-
-    # Guardar de forma persistente la marca de tiempo actual en la raíz del proceso
-    globals()['LAST_COMMAND_TIME'][user_id] = current_time
-
-    # 3. BYPASS VIP (Pase libre de créditos, pero respetando los 3 segundos de arriba)
-    if rango == "VIP":
-        return True
-        
-    # 4. Cobro de monedas para usuarios normales
-    if creditos < cost:
-        bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
-        return False
-        
-    update_user_credits(user_id, creditos - cost)
-    return True
-
-def luhn_check(card_number):
-    total = 0
-    reverse_digits = card_number[::-1]
-    for i, digit in enumerate(reverse_digits):
-        n = int(digit)
-        if i % 2 == 1:
-            n *= 2
-            if n > 9: n -= 9
-        total += n
-    return total % 10 == 0
 
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
