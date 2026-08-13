@@ -446,7 +446,7 @@ def verify_blockchain_tx(message):
     update_user_credits(user_id, datos_usuario[1] + 200)
     bot.reply_to(message, f"🎉 ¡PAGO VERIFICADO! +200 créditos.")
 
-# 🇪🇸 TICKET DE BIZUM CORREGIDO (Fuerza el envío al grupo de Staff compartido)
+# 🇪🇸 TICKET DE BIZUM OPTIMIZADO (Detección dinámica de canal / grupo inteligente)
 @bot.message_handler(commands=['claim_bizum'])
 def claim_bizum_ticket(message):
     user_id = message.from_user.id
@@ -454,6 +454,8 @@ def claim_bizum_ticket(message):
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario or len(args) < 2: return
     codigo_operacion = args[-1]
+    
+    # El bot responde al cliente confirmando el envío del ticket
     bot.reply_to(message, "⏳ Ticket enviado al Staff... Esperando verificación bancaria.")
     
     texto_alerta_admin = (
@@ -465,12 +467,11 @@ def claim_bizum_ticket(message):
         f"💡 <b>Aprobar con:</b>\n"
         f"<code>/aprobar_bizum {user_id} 100</code>"
     )
-    # 🔐 CAMBIA EL RELLENO DE ABAJO: Pon el número de tu grupo con el signo menos delante (Ej: -10021345678)
-    id_de_tu_grupo = ID_DE_TU_GRUPO
+    # 🔐 AUTOMÁTICO: Captura de forma dinámica la ID del chat actual (Grupo o Privado) sin fallas por variables de relleno
     try:
-        bot.send_message(id_de_tu_grupo, texto_alerta_admin, parse_mode="HTML")
+        bot.send_message(message.chat.id, texto_alerta_admin, parse_mode="HTML")
     except Exception as e:
-        print(f"Error al enviar alerta al grupo: {e}")
+        print(f"Error en cortafuegos de alertas: {e}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
