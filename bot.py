@@ -163,57 +163,39 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# Diccionarios dinámicos en memoria para el análisis forense de ráfagas de Spam
-SPAM_COUNT = {}
-SPAM_WARN_TIME = {}
-
-# 🛡️ MIDDLEWARE ACTUALIZADO: Cortafuegos reactivo Anti-Spam con protocolo de Auto-Baneo
+# 🛡️ MIDDLEWARE CALIBRADO: Temporizador estricto de 3 segundos por comando
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
     
-    # 1. Verificar registro primero
+    # 1. Verificar registro en la base de datos de Supabase
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
         bot.reply_to(message, "⚠️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
         
-    alias, creditos, rango = datos_usuario, datos_usuario, datos_usuario
+    alias, creditos, rango = datos_usuario[0], datos_usuario[1], datos_usuario[2]
     
-    # 2. Cortafuegos de Ciberseguridad: Si ya está Baneado, muerte súbita al mensaje
+    # 2. Si el rango es Baneado, muerte súbita al mensaje
     if rango == "Baneado":
         return False
 
-    # 3. Algoritmo de detección de ráfagas e inundación (Spam)
-    if user_id not in LAST_COMMAND_TIME:
-        LAST_COMMAND_TIME[user_id] = [current_time]
-        SPAM_COUNT[user_id] = 0
-    else:
-        # Filtrar solo los mensajes enviados en los últimos 6 segundos
-        LAST_COMMAND_TIME[user_id] = [t for t in LAST_COMMAND_TIME[user_id] if current_time - t < 6]
-        LAST_COMMAND_TIME[user_id].append(current_time)
-        
-        # Si mete más de 3 mensajes en 6 segundos, salta la ráfaga
-        if len(LAST_COMMAND_TIME[user_id]) > 3:
-            SPAM_COUNT[user_id] += 1
-            
-            # NIVEL 2 DE ATAQUE: Si insiste y llega a 6 mensajes, AUTO-BANEO automático en Supabase
-            if len(LAST_COMMAND_TIME[user_id]) >= 6:
-                update_user_rank(user_id, "Baneado")
-                bot.reply_to(message, f"🚨 <b>¡AUTO-BANEO ACTIVADO!</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n🛑 Motivo: <i>Ataque por inundación / Flood Flooding.</i>\n🔒 Estado: <b>Acceso Revocado en Supabase</b>\n─────────────────────\n⚠️ <i>Tu IP e ID han sido congeladas por seguridad del servidor.</i>", parse_mode="HTML")
-                return False
-                
-            # NIVEL 1 DE ADVERTENCIA: Mensaje antipánico
-            # Evita que el bot se auto-spamee a sí mismo limitando el aviso a cada 3 segundos
-            if user_id not in SPAM_WARN_TIME or current_time - SPAM_WARN_TIME[user_id] > 3:
-                SPAM_WARN_TIME[user_id] = current_time
-                bot.reply_to(message, "⏳ <b>¡ALERTA DE SPAM DETECTADA!</b>\nEstás enviando comandos demasiado rápido. Baja el ritmo o la IA del cortafuegos <b>bloqueará tu cuenta</b> de forma automática.", parse_mode="HTML")
+    # 3. Control de Cooldown estricto de 3 segundos por reloj
+    if user_id in LAST_COMMAND_TIME:
+        tiempo_transcurrido = current_time - LAST_COMMAND_TIME[user_id]
+        if tiempo_transcurrido < 3:
+            segundos_restantes = 3 - int(tiempo_transcurrido)
+            bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
             return False
 
-    # 4. Control de acceso por rangos comercial normal
+    # Guardar la marca de tiempo exacta del comando actual
+    LAST_COMMAND_TIME[user_id] = current_time
+
+    # 4. Bypass de rango VIP (Pase libre ilimitado de créditos)
     if rango == "VIP":
         return True
         
+    # 5. Cobro de créditos normal para usuarios Gratis
     if creditos < cost:
         bot.reply_to(message, f"❌ Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
@@ -232,9 +214,9 @@ def show_admin_panel(message):
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT COUNT(*) FROM usuarios')
-        total_usuarios = cursor.fetchone()
+        total_usuarios = cursor.fetchone()[0]
         cursor.execute('SELECT SUM(creditos) FROM usuarios')
-        total_creditos = cursor.fetchone() or 0
+        total_creditos = cursor.fetchone()[0] or 0
         cursor.close()
         conn.close()
         texto_panel = f"💻 <b>PANEL DE CONTROL CENTRAL</b>\n─────────────────────\n👥 <b>Usuarios en Base de Datos:</b> <code>{total_usuarios}</code>\n🪙 <b>Monedas Totales Emitidas:</b> <code>{total_creditos}</code> 🪙\n─────────────────────\n📢 <i>Usa <code>/broadcast texto</code> para alertar a todos.</i>"
@@ -249,7 +231,7 @@ def broadcast_message_admin(message):
     args = message.text.split(maxsplit=1)
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     if len(args) < 2: return
-    mensaje_masivo = args
+    mensaje_masivo = args[1]
     bot.reply_to(message, "⏳ Iniciando envío masivo...")
     try:
         conn = get_db_connection()
@@ -260,7 +242,7 @@ def broadcast_message_admin(message):
         conn.close()
         exitos, fallidos = 0, 0
         for usuario in lista_usuarios:
-            uid = usuario
+            uid = usuario[0]
             try:
                 bot.send_message(uid, f"📢 <b>ALERTA DEL ADMINISTRADOR</b>\n─────────────────────\n{mensaje_masivo}", parse_mode="HTML")
                 exitos += 1
@@ -269,7 +251,7 @@ def broadcast_message_admin(message):
         bot.reply_to(message, f"📢 Envío Completado\n🟢 Entregados: {exitos} | 🔴 Fallidos: {fallidos}")
     except Exception as e: bot.reply_to(message, f"❌ Error: {e}")
 
-# 👑 DESBANEAR O QUITAR VIP / VOLVER A GRATIS
+# 👑 DESBANEAR / VOLVER A GRATIS
 @bot.message_handler(commands=['setgratis'])
 def remove_user_vip_admin(message):
     user_id = message.from_user.id
@@ -279,7 +261,7 @@ def remove_user_vip_admin(message):
     datos_cliente = verificar_registro(target_id)
     if datos_cliente:
         update_user_rank(target_id, "Gratis")
-        bot.reply_to(message, f"🔰 Rango de <code>{datos_cliente}</code> cambiado de nuevo a <b>Gratis/Desbaneado</b>.", parse_mode="HTML")
+        bot.reply_to(message, f"🔰 Rango de <code>{datos_cliente[0]}</code> cambiado de nuevo a <b>Gratis/Desbaneado</b>.", parse_mode="HTML")
 
 # 👑 ACTIVAR VIP MANUAL
 @bot.message_handler(commands=['setvip'])
@@ -291,7 +273,7 @@ def set_user_vip_admin(message):
     datos_cliente = verificar_registro(target_id)
     if datos_cliente:
         update_user_rank(target_id, "VIP")
-        bot.reply_to(message, f"💎 Rango de <code>{datos_cliente}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
+        bot.reply_to(message, f"💎 Rango de <code>{datos_cliente[0]}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
 
 # 🗑️ BORRAR CUENTAS
 @bot.message_handler(commands=['delete', 'unregister'])
@@ -319,9 +301,10 @@ def add_credits_admin(message):
         target_id = message.reply_to_message.from_user.id if message.reply_to_message else user_id
         datos_cliente = verificar_registro(target_id)
         if datos_cliente:
-            update_user_credits(target_id, datos_cliente + cantidad)
+            update_user_credits(target_id, datos_cliente[1] + cantidad)
             bot.reply_to(message, f"🪙 Monedas inyectadas.")
     except: pass
+
 
 # 👑 COMANDO DE APROBACIÓN DE BIZUM
 @bot.message_handler(commands=['aprobar_bizum'])
