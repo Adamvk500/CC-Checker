@@ -29,11 +29,10 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 👑 TU NUEVA CONFIGURACIÓN ACTUALIZADA (100% Funcional sin bloqueos)
 def get_db_connection():
     contexto_ssl = ssl._create_unverified_context()
     return pg8000.connect(
-        host="aws-1-eu-west-1.pooler.supabase.com",
+        host="://supabase.com",
         port=5432,
         database="postgres",
         user="postgres.csagfnnecsfilqlftkfa",
@@ -44,7 +43,7 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Tabla de Usuarios
+    # Tabla de Usuarios Core
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             id BIGINT PRIMARY KEY,
@@ -54,11 +53,17 @@ def init_db():
             rango TEXT DEFAULT 'Gratis'
         )
     ''')
+    # Añadir columna de Cooldown Antiflood si no existe
     try:
         cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_uso DOUBLE PRECISION DEFAULT 0')
     except: pass
     
-    # MODIFICADO: Creación automática de la tabla de Logs Forenses en Supabase
+    # 👑 NUEVO: Añadir columna de Permisos de Staff (0 = Cliente, 1 = Staff Autorizado)
+    try:
+        cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_staff INTEGER DEFAULT 0')
+    except: pass
+    
+    # Tabla de Auditoría Forense
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs_auditoria (
             id SERIAL PRIMARY KEY,
@@ -77,7 +82,8 @@ init_db()
 def verificar_registro(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT alias_elegido, creditos, rango, ultimo_uso FROM usuarios WHERE id = %s', (user_id,))
+    # Extraer de forma limpia los 4 valores Core del perfil
+    cursor.execute('SELECT alias_elegido, creditos, rango, ultimo_uso, es_staff FROM usuarios WHERE id = %s', (user_id,))
     result = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -86,10 +92,8 @@ def verificar_registro(user_id):
 def registrar_log_evento(user_id, comando_texto):
     try:
         datos = verificar_registro(user_id)
-        # CORREGIDO: Extraer el índice 0 para que guarde solo el texto del alias, no la tupla completa
         alias_usuario = datos[0] if datos else "No_Registrado"
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('INSERT INTO logs_auditoria (fecha_hora, user_id, alias, comando) VALUES (%s, %s, %s, %s)', 
@@ -97,9 +101,7 @@ def registrar_log_evento(user_id, comando_texto):
         conn.commit()
         cursor.close()
         conn.close()
-    except Exception as e:
-        print(f"Error al escribir log en Supabase: {e}")
-
+    except: pass
 
 def comprobar_alias_existe(alias):
     conn = get_db_connection()
@@ -113,7 +115,7 @@ def comprobar_alias_existe(alias):
 def registrar_usuario_manual(user_id, alias, tg_username):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO usuarios (id, alias_elegido, telegram_username, creditos, ultimo_uso) VALUES (%s, %s, %s, 10, 0) ON CONFLICT (id) DO NOTHING', 
+    cursor.execute('INSERT INTO usuarios (id, alias_elegido, telegram_username, creditos, ultimo_uso, es_staff) VALUES (%s, %s, %s, 10, 0, 0) ON CONFLICT (id) DO NOTHING', 
                    (user_id, alias.lower(), tg_username))
     conn.commit()
     cursor.close()
@@ -135,6 +137,15 @@ def update_user_rank(user_id, nuevo_rango):
     cursor.close()
     conn.close()
 
+# 👑 NUEVA: Función para dar o quitar rango de Staff en Supabase
+def update_user_staff_status(user_id, nivel_staff):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET es_staff = %s WHERE id = %s', (nivel_staff, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def update_user_timestamp(user_id, timestamp):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -150,7 +161,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result if result else 0
+    return result[0] if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
@@ -163,7 +174,6 @@ def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
     
-    # MODIFICADO: Guarda un registro forense automático en Supabase de lo que escribe el usuario
     registrar_log_evento(user_id, message.text)
     
     datos_usuario = verificar_registro(user_id)
@@ -179,14 +189,18 @@ def check_user_access(message, cost=1):
     if rango == "Baneado":
         return False
 
-    tiempo_transcurrido = current_time - ultimo_uso
-    if tiempo_transcurrido < 3:
-        segundos_restantes = 3 - int(tiempo_transcurrido)
-        bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
-        return False
+    # ⏳ Control de Cooldown por base de datos (Persistente e insaltable)
+    if 'LAST_COMMAND_TIME' not in globals(): globals()['LAST_COMMAND_TIME'] = {}
+    if user_id in globals()['LAST_COMMAND_TIME']:
+        tiempo_transcurrido = current_time - globals()['LAST_COMMAND_TIME'][user_id]
+        if tiempo_transcurrido < 3:
+            segundos_restantes = 3 - int(tiempo_transcurrido)
+            bot.reply_to(message, f"⏳ <b>¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s antes de volver a ejecutar un comando.", parse_mode="HTML")
+            return False
 
-    update_user_timestamp(user_id, current_time)
+    globals()['LAST_COMMAND_TIME'][user_id] = current_time
 
+    # Bypass VIP: Consulta ilimitada gratis, pero respetando los 3 segundos antiflood de arriba
     if rango == "VIP":
         return True
         
@@ -208,13 +222,16 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-
-
+# 📊 PANEL DE CONTROL CENTRAL (Accesible por Dueño Supremo y por tu Staff autorizado)
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
     user_id = message.from_user.id
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
-        bot.reply_to(message, "❌ No tienes permisos de dueño para ver este panel.")
+    datos = verificar_registro(user_id)
+    is_staff_user = datos[4] if datos else 0
+    
+    # Filtro: Pasan el Dueño por ID/Username OR cualquier miembro con flag es_staff = 1
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513 and is_staff_user != 1:
+        bot.reply_to(message, "❌ Acceso Denegado. Comando exclusivo del Staff.")
         return
     try:
         conn = get_db_connection()
@@ -222,19 +239,24 @@ def show_admin_panel(message):
         cursor.execute('SELECT COUNT(*) FROM usuarios')
         total_usuarios = cursor.fetchone()
         cursor.execute('SELECT SUM(creditos) FROM usuarios')
-        total_creditos = cursor.fetchone() or [0]
+        total_creditos = cursor.fetchone() or 0
         cursor.close()
         conn.close()
         texto_panel = f"💻 <b>PANEL DE CONTROL CENTRAL</b>\n─────────────────────\n👥 <b>Usuarios en Base de Datos:</b> <code>{total_usuarios[0]}</code>\n🪙 <b>Monedas Totales Emitidas:</b> <code>{total_creditos[0]}</code> 🪙\n─────────────────────\n📢 <i>Usa <code>/broadcast texto</code> para alertar a todos.</i>"
         bot.reply_to(message, texto_panel, parse_mode="HTML")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Error al auditar la base de datos: {e}")
+    except Exception as e: bot.reply_to(message, f"❌ Error: {e}")
 
+# 📢 BROADCAST GLOBAL (Accesible por Dueño Supremo y por tu Staff)
 @bot.message_handler(commands=['broadcast', 'alert'])
 def broadcast_message_admin(message):
     user_id = message.from_user.id
     args = message.text.split(maxsplit=1)
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
+    datos = verificar_registro(user_id)
+    is_staff_user = datos[4] if datos else 0
+    
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513 and is_staff_user != 1:
+        bot.reply_to(message, "❌ Acceso Denegado. Comando exclusivo del Staff.")
+        return
     if len(args) < 2: return
     mensaje_masivo = args[1]
     bot.reply_to(message, "⏳ Iniciando envío masivo...")
@@ -256,21 +278,45 @@ def broadcast_message_admin(message):
         bot.reply_to(message, f"📢 Envío Completado\n🟢 Entregados: {exitos} | 🔴 Fallidos: {fallidos}")
     except Exception as e: bot.reply_to(message, f"❌ Error: {e}")
 
-@bot.message_handler(commands=['setgratis'])
-def remove_user_vip_admin(message):
+# 👑 NUEVO COMANDO: /addstaff (EXCLUSIVO DEL DUEÑO SUPREMO - Tu Staff no puede usar esto)
+@bot.message_handler(commands=['addstaff'])
+def promote_to_staff_owner(message):
+    user_id = message.from_user.id
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ Solo el Dueño Supremo puede nombrar nuevos miembros del Staff.")
+        return
+        
+    if not message.reply_to_message:
+        bot.reply_to(message, "✏️ <b>Uso correcto:</b> Responde al mensaje del colaborador y escribe: <code>/addstaff</code>", parse_mode="HTML")
+        return
+
+    target_id = message.reply_to_message.from_user.id
+    datos_cliente = verificar_registro(target_id)
+    if not datos_cliente:
+        bot.reply_to(message, "❌ Este usuario no está registrado en el bot.")
+        return
+        
+    update_user_staff_status(target_id, 1) # Nivel de Staff autorizado activo
+    bot.reply_to(message, f"🛠️ <b>NUEVO MIEMBRO DEL STAFF</b>\n─────────────────────\n👤 Colaborador: <code>{datos_cliente[0]}</code>\n🔒 Rango: <b>Moderador / Staff Autorizado</b>\n⚡ Permisos: <i>Acceso a Panel y Alertas globales. Gestión bloqueada.</i>", parse_mode="HTML")
+
+# 👑 NUEVO COMANDO: /removestaff (EXCLUSIVO DEL DUEÑO SUPREMO)
+@bot.message_handler(commands=['removestaff'])
+def demote_from_staff_owner(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     if not message.reply_to_message: return
     target_id = message.reply_to_message.from_user.id
     datos_cliente = verificar_registro(target_id)
     if datos_cliente:
-        update_user_rank(target_id, "Gratis")
-        bot.reply_to(message, f"🔰 Rango de <code>{datos_cliente[0]}</code> cambiado de nuevo a <b>Gratis/Desbaneado</b>.", parse_mode="HTML")
-
+        update_user_staff_status(target_id, 0)
+        bot.reply_to(message, f"❌ Permisos de Staff revocados para <code>{datos_cliente[0]}</code>. Volvió a rango Cliente.", parse_mode="HTML")
+# 👑 ACTIVAR VIP (EXCLUSIVO DEL DUEÑO SUPREMO - Bloqueado para tu Staff)
 @bot.message_handler(commands=['setvip'])
 def set_user_vip_admin(message):
     user_id = message.from_user.id
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
+        return
     if not message.reply_to_message: return
     target_id = message.reply_to_message.from_user.id
     datos_cliente = verificar_registro(target_id)
@@ -278,10 +324,27 @@ def set_user_vip_admin(message):
         update_user_rank(target_id, "VIP")
         bot.reply_to(message, f"💎 Rango de <code>{datos_cliente[0]}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
 
+# 👑 DESBANEAR / VOLVER A GRATIS (EXCLUSIVO DEL DUEÑO SUPREMO - Bloqueado para tu Staff)
+@bot.message_handler(commands=['setgratis'])
+def remove_user_vip_admin(message):
+    user_id = message.from_user.id
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
+        return
+    if not message.reply_to_message: return
+    target_id = message.reply_to_message.from_user.id
+    datos_cliente = verificar_registro(target_id)
+    if datos_cliente:
+        update_user_rank(target_id, "Gratis")
+        bot.reply_to(message, f"🔰 Rango de <code>{datos_cliente[0]}</code> cambiado de nuevo a <b>Gratis/Desbaneado</b>.", parse_mode="HTML")
+
+# 🗑️ BORRAR CUENTAS (EXCLUSIVO DEL DUEÑO SUPREMO - Bloqueado para tu Staff)
 @bot.message_handler(commands=['delete', 'unregister'])
 def delete_user_admin(message):
     user_id = message.from_user.id
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
+        return
     if message.reply_to_message:
         target_id = message.reply_to_message.from_user.id
         datos_cliente = verificar_registro(target_id)
@@ -291,11 +354,14 @@ def delete_user_admin(message):
     else:
         if verificar_registro(user_id): eliminar_usuario_db(user_id)
 
+# 🪙 INYECTAR MONEDAS (EXCLUSIVO DEL DUEÑO SUPREMO - Bloqueado para tu Staff)
 @bot.message_handler(commands=['add'])
 def add_credits_admin(message):
     user_id = message.from_user.id
     args = message.text.split()
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ Acceso Denegado. Tu rango de Staff no te permite inyectar monedas.")
+        return
     if len(args) < 2: return
     try:
         cantidad = int(args[-1])
@@ -303,9 +369,10 @@ def add_credits_admin(message):
         datos_cliente = verificar_registro(target_id)
         if datos_cliente:
             update_user_credits(target_id, datos_cliente[1] + cantidad)
-            bot.reply_to(message, f"🪙 Monedas inyectadas.")
+            bot.reply_to(message, f"🪙 Monedas inyectadas de forma exitosa.")
     except: pass
 
+# 👑 APROBACIÓN DE BIZUM (EXCLUSIVO DEL DUEÑO SUPREMO - Bloqueado para tu Staff)
 @bot.message_handler(commands=['aprobar_bizum'])
 def approve_bizum_ticket(message):
     user_id = message.from_user.id
@@ -438,7 +505,7 @@ def check_card(message):
         input_data = message.text
         cards = re.findall(r'\d+', input_data)
         if len(cards) < 4: return
-        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
+        cc, mes, ano, cvv = cards, cards, cards, cards
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
