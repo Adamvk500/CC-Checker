@@ -219,8 +219,7 @@ def check_user_access(message, cost=1):
         tiempo_transcurrido = current_time - globals()['LAST_COMMAND_TIME'][user_id]
         if tiempo_transcurrido < 3:
             segundos_restantes = 3 - int(tiempo_transcurrido)
-            bot.reply_to(message, f"
-⚠️ **SISTEMA ANTIFLOOD!**\nPor favor, espera <code>{segundos_restantes}</code>s.", parse_mode="MarkdownV2")
+            bot.reply_to(message, f"⚠️ **SISTEMA ANTIFLOOD!**\nPor favor, espera <code>{segundos_restantes}</code>s.", parse_mode="MarkdownV2")
             return False
 
     globals()['LAST_COMMAND_TIME'][user_id] = current_time
@@ -228,8 +227,7 @@ def check_user_access(message, cost=1):
     if rango == "VIP": return True
     
     if creditos < cost:
-        bot.reply_to(message, f"
-Creditos insuficientes. Tienes: {creditos} monedas.")
+        bot.reply_to(message, f"Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
 
     update_user_credits(user_id, creditos - cost)
@@ -294,8 +292,7 @@ def promote_to_staff_owner(message):
         
         if target_data:
             update_user_staff_status(target_data[0], 1)
-            bot.reply_to(message, f"
-Staff asignado a <code>{target_alias}</code>.", parse_mode="HTML")
+            bot.reply_to(message, f"Staff asignado a <code>{target_alias}</code>.", parse_mode="HTML")
     except: pass
 
 @bot.message_handler(commands=['aprobar_bizum'])
@@ -355,8 +352,7 @@ def set_user_vip_admin(message):
     datos_cliente = verificar_registro(target_id)
     if datos_cliente:
         update_user_rank(target_id, "VIP")
-        bot.reply_to(message, f"
-Rango de <code>{datos_cliente[0]}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
+        bot.reply_to(message, f"Rango de <code>{datos_cliente[0]}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
 
 @bot.message_handler(commands=['delete', 'unregister'])
 def delete_user_admin(message):
@@ -385,8 +381,7 @@ def register_user(message):
     
     alias_deseado = args[-1]
     registrar_usuario_manual(user_id, alias_deseado, tg_username)
-    bot.reply_to(message, f"
-✅ **¡REGISTRO COMPLETADO!**\n
+    bot.reply_to(message, f"✅ **¡REGISTRO COMPLETADO!**\n
 Bienvenido: <code>{alias_deseado}</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['credits', 'bal'])
@@ -394,8 +389,7 @@ def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos: return
     alias, creditos, rango = datos[0], datos[1], datos[2]
-    bot.reply_to(message, f"
-👤 **CUENTA**\n
+    bot.reply_to(message, f"👤 **CUENTA**\n
 Alias: <code>{alias}</code>\n
 Saldo: <code>{creditos}</code> créditos\n
 Rango: <b>{rango}</b>", parse_mode="HTML")
@@ -444,8 +438,7 @@ def show_public_commands(message):
 @bot.message_handler(commands=['recargar', 'buy'])
 def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): return
-    bot.reply_to(message, f"
-💳 **PASARELA MULTIPAGO**\n
+    bot.reply_to(message, f"💳 **PASARELA MULTIPAGO**\n
 • Bizum al: <code>600123456</code>\n
 • Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
@@ -463,12 +456,10 @@ def contact_support_team(message):
     
     mensaje_soporte = args[-1]
     alias = datos_usuario[0]
-    bot.reply_to(message, "
-✅ **¡Ticket Enviado!** Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
+    bot.reply_to(message, "✅ **¡Ticket Enviado!** Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
 
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
-    texto_soporte_staff = f"
-🎫 **NUEVO TICKET DE SOPORTE!**\n
+    texto_soporte_staff = f"🎫 **NUEVO TICKET DE SOPORTE!**\n
 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n
 {mensaje_soporte}"
     try:
@@ -491,12 +482,10 @@ def claim_bizum_ticket(message):
 
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_alerta_admin = (
-        f"
-🟡 **BIZUM RECIBIDO**\n"
+        f"🟡 **BIZUM RECIBIDO**\n"
         f"Cliente: {alias} (ID: <code>{user_id}</code>)\n"
         f"Ticket: <code>{codigo_operacion}</code>\n"
-        f"Chat Origen: <code>{chat_origen_exacto}</code>\n
-"
+        f"Chat Origen: <code>{chat_origen_exacto}</code>\n"
         f"**Copiar resolución:**\n"
         f"<code>/aprobar_bizum {user_id} 100 {chat_origen_exacto}</code>\n"
         f"<code>/rechazar_bizum {user_id} {chat_origen_exacto}</code>"
@@ -564,8 +553,7 @@ def check_bin_standalone(message):
             brand, card_type, bank_name, country_name, flag = "Visa" if bin_number.startswith('4') else "Mastercard", "Credit", "BANCO GENERICO", "Desconocido", " • "
             
         creditos_actuales = get_user_credits(message.from_user.id)
-        bot.reply_to(message, f"
-🔍 **BIN: {bin_number}**\n
+        bot.reply_to(message, f"🔍 **BIN: {bin_number}**\n
 Franquicia: {brand}\n
 Tipo: {card_type}\n
 Banco: {bank_name}\n
@@ -595,8 +583,7 @@ def check_card(message):
         else:
             brand, card_type, bank_name, country_name, flag = "Visa" if bin_number.startswith('4') else "Mastercard", "Credit", "BANCO GENERICO", "Desconocido", " • "
             
-        bot.reply_to(message, f"
-💳 **Card: {cc}|{mes}|{ano}|{cvv}**\n
+        bot.reply_to(message, f"💳 **Card: {cc}|{mes}|{ano}|{cvv}**\n
 Estado: {status}\n
 Franquicia: {brand}\n
 Tipo: {card_type}\n
