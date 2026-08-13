@@ -252,8 +252,7 @@ def auto_save_group_channel(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     guardar_grupo_staff_db(message.chat.id)
-    bot.reply_to(message, f"
-🎉 **GRUPO DE STAFF CONFIGURADO!**\nLas alertas de Bizum cazarán de forma centralizada el entero puro.", parse_mode="HTML")
+    bot.reply_to(message, f"🎉 **GRUPO DE STAFF CONFIGURADO!**\nLas alertas de Bizum cazarán de forma centralizada el entero puro.", parse_mode="HTML")
 
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
@@ -270,8 +269,7 @@ def show_admin_panel(message):
         total_usuarios = cursor.fetchone()
         cursor.close()
         conn.close()
-        bot.reply_to(message, f"
-👥 Usuarios totales registrados en Supabase: {total_usuarios[0]}")
+        bot.reply_to(message, f"👥 Usuarios totales registrados en Supabase: {total_usuarios[0]}")
     except: pass
 
 @bot.message_handler(commands=['addstaff'])
@@ -332,8 +330,7 @@ def reject_bizum_ticket(message):
         datos_cliente = verificar_registro(target_uid)
         if datos_cliente:
             alias = datos_cliente[0]
-            bot.send_message(chat_origen_salva, f"
-🔴 **¡BIZUM RECHAZADO!**\n
+            bot.send_message(chat_origen_salva, f"🔴 **¡BIZUM RECHAZADO!**\n
 Cliente: <code>{alias}</code>\n
 Estado: <b>No Recibido / Falso</b>\n
 Resolución: <i>Ticket cerrado. No se ha encontrado ningún ingreso en el banco.</i>", parse_mode="HTML")
@@ -426,9 +423,7 @@ def callback_listener_buttons(call):
 @bot.message_handler(commands=['comandos', 'help'])
 def show_public_commands(message):
     if not verificar_registro(message.from_user.id): return
-    bot.reply_to(message, "
-🛠️ **HERRAMIENTAS**\n
-<code>/chk CARD</code>\n
+    bot.reply_to(message, f"🛠️ **HERRAMIENTAS**\n<code>/chk CARD</code>\n
 <code>/gen BIN</code>\n
 <code>/bin BIN</code>\n
 <code>/credits</code>\n
@@ -528,8 +523,7 @@ def generate_cards(message):
         
         cards_output = "\n".join(generated_list)
         creditos_actuales = get_user_credits(message.from_user.id)
-        bot.reply_to(message, f"
-💳 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {creditos_actuales} creditos.")
+        bot.reply_to(message, f"💳 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {creditos_actuales} creditos.")
     except Exception as e: 
         bot.reply_to(message, f"Error al generar: {str(e)}")
 
