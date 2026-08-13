@@ -334,6 +334,7 @@ def delete_user_admin(message):
 # ==========================================
 # # PARTE 4: COMANDOS PÚBLICOS DE USUARIOS, MANEJADOR DE BOTONES INLINE Y INFINITY POLLING
 # ==========================================
+
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
@@ -351,7 +352,7 @@ def register_user(message):
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos: return
-    # 👑 DESCOMPRESIÓN: Extraemos cada elemento usando su índice numérico exacto de la lista de Supabase
+    # 👑 DESCOMPRESIÓN: Aislamiento por índices individuales para limpiar listas
     alias = datos[0]
     creditos = datos[1]
     rango = datos[2]
@@ -361,12 +362,12 @@ def show_credits(message):
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        # 👑 DESCOMPRESIÓN: Extraemos cada elemento individual limpio sin arrastrar la lista entera
+        # 👑 DESCOMPRESIÓN: Extraemos los strings limpios quitando los corchetes de la foto
         alias = datos[0]
         creditos = datos[1]
         rango = datos[2]
         
-        # Generación limpia de la botonera inline minimalista
+        # Generación de la botonera inline minimalista exigida
         markup = InlineKeyboardMarkup()
         btn_comandos = InlineKeyboardButton("📚 Ver Herramientas", callback_data="abrir_menu_comandos")
         btn_recargar = InlineKeyboardButton("💳 Comprar Créditos", callback_data="abrir_menu_recargar")
@@ -376,15 +377,15 @@ def send_welcome(message):
     else:
         bot.reply_to(message, "👋 <b>¡BIENVENIDO!</b>\n🛡️ Regístrate con: <code>/register tu_nombre</code>", parse_mode="HTML")
 
-# 🤖 CORREGIDO: Escucha de eventos gráficos que procesa el click y responde de forma nativa e interactiva
+# 🤖 ESCUCHA INTERACTIVA: Captura el click del botón inline y ejecuta el menú síncrono al instante
 @bot.callback_query_handler(func=lambda call: True)
 def callback_listener_buttons(call):
-    # Avisa a la API de Telegram que el click ha sido recibido con éxito para quitar el reloj de arena del botón
+    # 👑 Quita el estado de "cargando" (reloj de arena) del botón en Telegram
     try:
         bot.answer_callback_query(call.id)
     except: pass
     
-    # Redirige de forma dinámica la acción según el botón pulsado
+    # Ruteo dinámico de menús
     if call.data == "abrir_menu_comandos":
         show_public_commands(call.message)
     elif call.data == "abrir_menu_recargar":
@@ -400,7 +401,8 @@ def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): return
     bot.reply_to(message, f"💳 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
-@bot.message_handler(commands=['soporte', 'contact', 'ticket'])
+# 📢 NUEVO COMANDO: /soporte (Envía un ticket directo encriptado a vuestro grupo de Staff)
+@bot.message_handler(commands=['soporte', 'contact'])
 def contact_support_team(message):
     user_id = message.from_user.id
     args = message.text.split(maxsplit=1)
@@ -415,6 +417,7 @@ def contact_support_team(message):
     alias = datos_usuario[0]
     bot.reply_to(message, "📥 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
     
+    # Enruta el ticket de soporte al grupo de staff configurado con /setgrupo
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_soporte_staff = f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n💬 Mensaje: <i>{mensaje_soporte}</i>"
     try: bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
