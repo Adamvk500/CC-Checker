@@ -163,51 +163,20 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# 👑 NUEVO COMANDO: /setvip (Cambia el rango de un usuario a VIP en Reply)
-@bot.message_handler(commands=['setvip'])
-def set_user_vip_admin(message):
-    user_id = message.from_user.id
-    args = message.text.split()
-    
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
-        bot.reply_to(message, "❌ No tienes permisos de dueño para otorgar rangos.")
-        return
-
-    if not message.reply_to_message:
-        bot.reply_to(message, "✏️ <b>Uso correcto:</b> Responde al mensaje del usuario y escribe: <code>/setvip</code>", parse_mode="HTML")
-        return
-
-    target_id = message.reply_to_message.from_user.id
-    datos_cliente = verificar_registro(target_id)
-    if not datos_cliente:
-        bot.reply_to(message, "❌ Este usuario no está registrado en el bot.")
-        return
-        
-    alias = datos_cliente[0]
-    update_user_rank(target_id, "VIP")
-    
-    bot.reply_to(message, f"💎 <b>RANGO ACTUALIZADO</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n🔰 Nuevo Rango: <b>🌟 VIP Premium</b>\n⚡ Beneficio: <i>¡Consultas infinitas gratis activadas!</i>", parse_mode="HTML")
-
-# 📊 NUEVO COMANDO: /panel (Muestra estadísticas de tu base de datos en tiempo real)
+# 📊 PANEL DE CONTROL CENTRAL (Solo Administrador)
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos de dueño para ver este panel.")
         return
-
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # Consulta 1: Contar usuarios registrados totales
         cursor.execute('SELECT COUNT(*) FROM usuarios')
         total_usuarios = cursor.fetchone()[0]
-        
-        # Consulta 2: Contar total de monedas emitidas en el sistema
         cursor.execute('SELECT SUM(creditos) FROM usuarios')
         total_creditos = cursor.fetchone()[0] or 0
-        
         cursor.close()
         conn.close()
         
@@ -223,16 +192,14 @@ def show_admin_panel(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Error al auditar la base de datos: {e}")
 
-# 📢 NUEVO COMANDO: /broadcast (Envía un mensaje masivo a todos los usuarios de Supabase)
+# 📢 MENSAJES MASIVOS GLOBAL (Solo Administrador)
 @bot.message_handler(commands=['broadcast', 'alert'])
 def broadcast_message_admin(message):
     user_id = message.from_user.id
     args = message.text.split(maxsplit=1)
-    
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos para enviar alertas masivas.")
         return
-
     if len(args) < 2:
         bot.reply_to(message, "✏️ <b>Uso correcto:</b> <code>/broadcast Tu mensaje aquí</code>", parse_mode="HTML")
         return
@@ -243,32 +210,28 @@ def broadcast_message_admin(message):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Extrae las IDs de todos los usuarios registrados
         cursor.execute('SELECT id FROM usuarios')
         lista_usuarios = cursor.fetchall()
         cursor.close()
         conn.close()
 
-        exitos = 0
-        fallidos = 0
-
+        exitos, fallidos = 0, 0
         for usuario in lista_usuarios:
             uid = usuario[0]
             try:
                 bot.send_message(uid, f"📢 <b>ALERTA DEL ADMINISTRADOR</b>\n─────────────────────\n{mensaje_masivo}", parse_mode="HTML")
                 exitos += 1
-                time.sleep(0.1) # Pequeño delay de ciberseguridad para evitar baneo de la API de Telegram
+                time.sleep(0.1)
             except:
                 fallidos += 1
-
         bot.reply_to(message, f"📢 <b>Envío Masivo Completado</b>\n─────────────────────\n🟢 Entregados: <code>{exitos}</code>\n🔴 Bloqueados/Fallidos: <code>{fallidos}</code>", parse_mode="HTML")
     except Exception as e:
         bot.reply_to(message, f"❌ Error en el hilo de envío: {e}")
 
+# 👑 OTORGAR VIP (Solo Administrador)
 @bot.message_handler(commands=['setvip'])
 def set_user_vip_admin(message):
     user_id = message.from_user.id
-    args = message.text.split()
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos de dueño para otorgar rangos.")
         return
@@ -284,6 +247,7 @@ def set_user_vip_admin(message):
     update_user_rank(target_id, "VIP")
     bot.reply_to(message, f"💎 <b>RANGO ACTUALIZADO</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n🔰 Nuevo Rango: <b>🌟 VIP Premium</b>\n⚡ Beneficio: <i>¡Consultas infinitas gratis activadas!</i>", parse_mode="HTML")
 
+# 👑 QUITAR VIP (Solo Administrador)
 @bot.message_handler(commands=['setgratis'])
 def remove_user_vip_admin(message):
     user_id = message.from_user.id
@@ -295,6 +259,7 @@ def remove_user_vip_admin(message):
         update_user_rank(target_id, "Gratis")
         bot.reply_to(message, f"🔰 Rango de <code>{datos_cliente[0]}</code> cambiado de nuevo a <b>Gratis</b>.", parse_mode="HTML")
 
+# 🗑️ BORRAR CUENTAS (Solo Administrador)
 @bot.message_handler(commands=['delete', 'unregister'])
 def delete_user_admin(message):
     user_id = message.from_user.id
@@ -304,18 +269,15 @@ def delete_user_admin(message):
     if message.reply_to_message:
         target_id = message.reply_to_message.from_user.id
         datos_cliente = verificar_registro(target_id)
-        if not datos_cliente:
-            bot.reply_to(message, "❌ Este usuario ni siquiera está registrado.")
-            return
+        if not datos_cliente: return
         eliminar_usuario_db(target_id)
         bot.reply_to(message, f"🗑️ Cuenta de <code>{datos_cliente[0]}</code> eliminada de la base de datos.", parse_mode="HTML")
     else:
         if verificar_registro(user_id):
             eliminar_usuario_db(user_id)
             bot.reply_to(message, "🗑️ Tu cuenta ha sido eliminada con éxito. Ya puedes volver a usar /register.")
-        else:
-            bot.reply_to(message, "❌ No estás registrado en el sistema.")
 
+# 🪙 INYECTAR MONEDAS (Solo Administrador)
 @bot.message_handler(commands=['add'])
 def add_credits_admin(message):
     user_id = message.from_user.id
@@ -340,49 +302,88 @@ def add_credits_admin(message):
         bot.reply_to(message, f"🪙 <b>Inyección Exitosa</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n Recargados: +<code>{cantidad}</code> créditos.\n🪙 Total actual: <code>{nuevos_creditos}</code> monedas.", parse_mode="HTML")
     except ValueError:
         bot.reply_to(message, "❌ Introduce una cantidad numérica válida.")
+# 👤 REGISTRO MANUAL DE USUARIOS
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
     tg_username = message.from_user.username or 'Usuario'
     args = message.text.split()
     if verificar_registro(user_id):
-        bot.reply_to(message, "❌ Ya estas registrado.")
+        bot.reply_to(message, "❌ Ya estás registrado en nuestro sistema.")
         return
     if len(args) < 2:
-        bot.reply_to(message, "✏️ Uso: /register tu_nombre")
+        bot.reply_to(message, "✏️ <b>Uso correcto:</b> <code>/register tu_nombre</code>", parse_mode="HTML")
         return
     alias_deseado = args[-1]
     if not re.match(r'^[\w\d]+$', alias_deseado):
-        bot.reply_to(message, "❌ Solo letras y numeros sin espacios.")
+        bot.reply_to(message, "❌ El nombre solo puede tener letras y números sin espacios.")
         return
     if comprobar_alias_existe(alias_deseado):
-        bot.reply_to(message, "⚠️ Ese nombre ya esta ocupado.")
+        bot.reply_to(message, "⚠️ Ese nombre ya está ocupado por otro usuario.")
         return
     registrar_usuario_manual(user_id, alias_deseado, tg_username)
-    bot.reply_to(message, f"🎉 Registro Exitoso! Bienvenido {alias_deseado.lower()}. Recibiste 10 creditos.")
+    bot.reply_to(message, f"🎉 <b>¡REGISTRO COMPLETADO!</b>\n─────────────────────\n👤 Bienvenido: <code>{alias_deseado}</code>\n🪙 Regalo inicial: <b>10 créditos</b> 🪙\n─────────────────────\n👀 <i>Escribe <code>/comandos</code> para ver lo que puedes hacer.</i>", parse_mode="HTML")
 
+# 💳 CONSULTAR SALDO
 @bot.message_handler(commands=['credits', 'bal'])
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos:
-        bot.reply_to(message, "⚠️ Registrate con /register tu_nombre primero.")
+        bot.reply_to(message, "⚠️ No estás registrado. Usa <code>/register tu_nombre</code> primero.", parse_mode="HTML")
         return
-    alias = datos[0]
-    creditos = datos[1]
-    rango = datos[2]
-    bot.reply_to(message, f"👤 Usuario: {alias} | 🪙 Creditos: {creditos} | 🔰 Rango: {rango}")
+    alias, creditos, rango = datos[0], datos[1], datos[2]
+    bot.reply_to(message, f"👤 <b>CUENTA DE USUARIO</b>\n─────────────────────\n👤 Alias: <code>{alias}</code>\n🪙 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <b>{rango}</b>", parse_mode="HTML")
 
+# 🏛️ NUEVA BIENVENIDA /START DIGNA
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        alias = datos[0]
-        creditos = datos[1]
-        rango = datos[2]
-        welcome_text = f"👋 Hola de nuevo, {alias}!\n\nSaldo: {creditos} creditos | Rango: {rango}\n\n⚡ /chk CARD\n🎲 /gen BIN\n🔍 /bin BIN"
+        alias, creditos, rango = datos[0], datos[1], datos[2]
+        welcome_text = (
+            f"👋 <b>¡Hola de nuevo, {alias}!</b>\n\n"
+            f"👑 Bienvenido a la plataforma central de simulación.\n"
+            f"─────────────────────\n"
+            f"🪙 <b>Tu Saldo:</b> <code>{creditos}</code> créditos\n"
+            f"🔰 <b>Tu Rango:</b> <code>{rango}</code>\n"
+            f"─────────────────────\n"
+            f"⚡ <i>Escribe <code>/comandos</code> para desplegar la lista de herramientas disponibles.</i>"
+        )
     else:
-        welcome_text = "👋 Bienvenido!\n\n🔑 Registrate de forma manual para usar el bot.\n\n✏️ Escribe: /register tu_nombre"
-    bot.reply_to(message, welcome_text)
+        welcome_text = (
+            f"👋 <b>¡BIENVENIDO AL PRESTIGIOSO CHECKER BOT v5.5!</b>\n\n"
+            f"🛡️ Para poder acceder a nuestro laboratorio de simulación de algoritmos y herramientas de tarjetas, "
+            f"necesitamos que crees un perfil de usuario en nuestra base de datos descentralizada de Supabase.\n\n"
+            f"✏️ <b>Regístrate de forma manual escribiendo:</b>\n"
+            f"<code>/register tu_nombre</code>\n\n"
+            f"🎁 <i>¡Al registrarte recibirás 10 monedas gratis de regalo!</i>"
+        )
+    bot.reply_to(message, welcome_text, parse_mode="HTML")
+
+# 📚 NUEVO COMANDO: /comandos (Lista EXCLUSIVA para clientes, oculta el Staff)
+@bot.message_handler(commands=['comandos', 'help', 'help'])
+def show_public_commands(message):
+    datos = verificar_registro(message.from_user.id)
+    if not datos:
+        bot.reply_to(message, "⚠️ Debes registrarte primero con <code>/register tu_nombre</code> para ver los comandos.", parse_mode="HTML")
+        return
+        
+    texto_comandos = (
+        f"📚 <b>MENÚ DE HERRAMIENTAS DISPONIBLES</b>\n"
+        f"<i>Lista oficial para miembros del laboratorio</i>\n"
+        f"─────────────────────\n"
+        f"⚡ <code>/chk CARD|MM|AA|CVV</code>\n"
+        f"└─ Revisa el algoritmo de una tarjeta por la red.\n\n"
+        f"🎲 <code>/gen BIN</code>\n"
+        f"└─ Genera 10 tarjetas válidas usando la Ley de Luhn.\n\n"
+        f"🔍 <code>/bin BIN</code>\n"
+        f"└─ Extrae el Banco, País y Franquicia de cualquier BIN.\n\n"
+        f"🪙 <code>/credits</code>\n"
+        f"└─ Consulta tu alias, saldo de monedas y rango actual.\n"
+        f"─────────────────────\n"
+        f"💡 <i>Cada consulta a las herramientas consume 1 crédito de tu saldo (Usuarios VIP tienen pase libre ilimitado).</i>"
+    )
+    bot.reply_to(message, texto_comandos, parse_mode="HTML")
 
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
@@ -411,7 +412,7 @@ def generate_cards(message):
                     generated_list.append(f"{test_cc}|{mes}|{ano}|{cvv}")
                     break
         cards_output = "\n".join(generated_list)
-        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)[1] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)} creditos."
+        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)[0] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)} creditos."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error al generar: {str(e)}")
@@ -437,7 +438,7 @@ def check_bin_standalone(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[1] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)}."
+        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)}."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
@@ -451,6 +452,7 @@ def check_card(message):
         if len(cards) < 4:
             bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
+        # CORREGIDO: Indexación fija de variables de tarjeta limpias (Línea 257 reparada)
         cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
         status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
@@ -465,7 +467,7 @@ def check_card(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[1] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)}"
+        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)}"
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
@@ -486,3 +488,4 @@ while True:
     except Exception as e:
         print(f"Error general: {e}")
         time.sleep(5)
+
