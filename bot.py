@@ -168,8 +168,10 @@ def update_user_staff_status(user_id, nivel_staff):
     cursor.execute('UPDATE usuarios SET es_staff = %s WHERE id = %s', (nivel_staff, user_id))
     conn.commit()
     cursor.close()
-    conn.close()# ==========================================
-# # PARTE 2: GATEWAY DE TIEMPOS, REGLAS ALGORÍTMICAS Y GRABADOR INTELIGENTE DE CANALES DE STAFF
+    conn.close()
+
+# ==========================================
+# # PARTE 2: FILTRO DE ACCESO ANTIFLOOD, CONTROL DE ENTRADA Y COMANDO DE CONTROL PARA ENLACES DE INVITACIÓN
 # ==========================================
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
@@ -219,7 +221,7 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# 👑 CORREGIDO: Uso de join_chat_by_invite_link para la librería pyTelegramBotAPI
+# 👑 CORREGIDO: Uso de accept_chat_invite extrayendo el hash limpio del enlace de invitación de Telegram
 @bot.message_handler(commands=['joingroup'])
 def join_external_group_owner(message):
     user_id = message.from_user.id
@@ -228,11 +230,16 @@ def join_external_group_owner(message):
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: <code>/joingroup https://t.me</code>", parse_mode="HTML")
         return
-    link = args[-1]
+    
+    raw_link = args[-1]
     bot.reply_to(message, "📥 Procesando token de invitación e ingresando al canal objetivo de forma automatizada...")
+    
     try:
-        # Método oficial síncrono corregido
-        bot.join_chat_by_invite_link(link)
+        # Extrae el hash que viene después del signo más (+) del enlace
+        invite_hash = raw_link.split('/+')[-1] if '/+' in raw_link else raw_link.split('/')[-1]
+        
+        # Método oficial síncrono que acepta la invitación de la API de Telegram
+        bot.accept_chat_invite(invite_hash)
         bot.reply_to(message, "✅ <b>Ingreso Exitoso.</b> El bot se ha vinculado al grupo del cliente y la memoria de enrutamiento está activa.", parse_mode="HTML")
     except Exception as e:
         bot.reply_to(message, f"❌ Error de protocolo al validar el enlace de Telegram: {e}")
@@ -254,6 +261,7 @@ def auto_save_group_channel(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     guardar_grupo_staff_db(message.chat.id)
     bot.reply_to(message, f"🎯 <b>¡GRUPO DE STAFF CONFIGURADO!</b>\nLas notificaciones del administrador caerán aquí.", parse_mode="HTML")
+
 
 # PARTE 3: ACCIONES SUPREMAS DE CONTROL, INYECTOR DE CRÉDITOS Y CONTROL DE RESOLUCIÓN BIZUM INTER-GRUPO
 @bot.message_handler(commands=['aprobar_bizum'])
