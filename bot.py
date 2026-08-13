@@ -352,22 +352,22 @@ def register_user(message):
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos: return
-    # 👑 DESCOMPRESIÓN: Aislamiento por índices individuales para limpiar listas
+    # 👑 CORREGIDO: Indexación fija individual para limpiar los corchetes de Supabase
     alias = datos[0]
     creditos = datos[1]
     rango = datos[2]
-    bot.reply_to(message, f"👤 <b>CUENTA</b>\n👤 Alias: <code>{alias}</code>\n🪙 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <b>{rango}</b>", parse_mode="HTML")
+    bot.reply_to(message, f"👤 <b>CUANTE DE USUARIO</b>\n👤 Alias: <code>{alias}</code>\n🪙 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <b>{rango}</b>", parse_mode="HTML")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        # 👑 DESCOMPRESIÓN: Extraemos los strings limpios quitando los corchetes de la foto
+        # 👑 CORREGIDO: Descompresión limpia por índices de strings para eliminar la tupla de la foto
         alias = datos[0]
         creditos = datos[1]
         rango = datos[2]
         
-        # Generación de la botonera inline minimalista exigida
+        # Generación de la botonera inline minimalista
         markup = InlineKeyboardMarkup()
         btn_comandos = InlineKeyboardButton("📚 Ver Herramientas", callback_data="abrir_menu_comandos")
         btn_recargar = InlineKeyboardButton("💳 Comprar Créditos", callback_data="abrir_menu_recargar")
@@ -377,19 +377,23 @@ def send_welcome(message):
     else:
         bot.reply_to(message, "👋 <b>¡BIENVENIDO!</b>\n🛡️ Regístrate con: <code>/register tu_nombre</code>", parse_mode="HTML")
 
-# 🤖 ESCUCHA INTERACTIVA: Captura el click del botón inline y ejecuta el menú síncrono al instante
+# 🤖 CORREGIDO INTERACTIVO: Captura el click y suplanta la ID del bot por la del usuario real que pulsó el botón
 @bot.callback_query_handler(func=lambda call: True)
 def callback_listener_buttons(call):
-    # 👑 Quita el estado de "cargando" (reloj de arena) del botón en Telegram
+    # 👑 Quita el estado de "cargando" (reloj de arena) de Telegram al instante
     try:
         bot.answer_callback_query(call.id)
     except: pass
     
-    # Ruteo dinámico de menús
+    # 🔐 CLONADOR DE IDENTIDAD: Clonamos el mensaje y forzamos la ID de la persona real para que el bot la reconozca
+    mensaje_clonado = call.message
+    mensaje_clonado.from_user.id = call.from_user.id
+    
+    # Ruteo dinámico reutilizando las funciones nativas sin duplicar lógica
     if call.data == "abrir_menu_comandos":
-        show_public_commands(call.message)
+        show_public_commands(mensaje_clonado)
     elif call.data == "abrir_menu_recargar":
-        dual_recharge_menu(call.message)
+        dual_recharge_menu(mensaje_clonado)
 
 @bot.message_handler(commands=['comandos', 'help'])
 def show_public_commands(message):
@@ -401,7 +405,7 @@ def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): return
     bot.reply_to(message, f"💳 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
-# 📢 NUEVO COMANDO: /soporte (Envía un ticket directo encriptado a vuestro grupo de Staff)
+# 📢 COMANDO DE SOPORTE ENTRANTE
 @bot.message_handler(commands=['soporte', 'contact'])
 def contact_support_team(message):
     user_id = message.from_user.id
@@ -417,7 +421,6 @@ def contact_support_team(message):
     alias = datos_usuario[0]
     bot.reply_to(message, "📥 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
     
-    # Enruta el ticket de soporte al grupo de staff configurado con /setgrupo
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_soporte_staff = f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n💬 Mensaje: <i>{mensaje_soporte}</i>"
     try: bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
