@@ -320,41 +320,66 @@ def demote_from_staff_owner(message):
 # ==========================================
 # # PARTE 3: CANDADOS ADMINISTRATIVOS COMPLETO (SISTEMA DE CONTROL COMERCIAL Y ACCIONES DE MONEDAS)
 # ==========================================
-# Validador de Bizums: inyecta fondos y genera el reporte visual final en el grupo de staff
+
+# 🟢 APROBAR BIZUM: Responde directamente en el chat activo (Grupo o privado) y avisa al cliente a solas
 @bot.message_handler(commands=['aprobar_bizum'])
 def approve_bizum_ticket(message):
     user_id = message.from_user.id
     args = message.text.split()
+    
+    # Candado estricto de Dueño Supremo
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     if len(args) < 3: return
+    
     try:
         target_uid = int(args[1])
         cantidad = int(args[2])
         datos_cliente = verificar_registro(target_uid)
+        
         if datos_cliente:
             alias = datos_cliente[0]
             creditos_viejos = datos_cliente[1]
             nuevos_creditos = creditos_viejos + cantidad
             update_user_credits(target_uid, nuevos_creditos)
-            bot.reply_to(message, f"✅ <b>¡BIZUM ACEPTADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>Fondos Verificados</b>\n🪙 Recarga: +<code>{cantidad}</code> créditos sumados.", parse_mode="HTML")
-            bot.send_message(target_uid, f"🎉 <b>¡BIZUM VERIFICADO CON ÉXITO!</b>\n📥 Acreditados: +<code>{cantidad}</code> monedas.\n🪙 Total actual: <code>{nuevos_creditos}</code> créditos.", parse_mode="HTML")
-    except: pass
+            
+            # 📢 DINÁMICO: Envía el cartel de éxito al chat desde donde tú enviaste el comando (si lo tiras en el grupo, sale en el grupo)
+            bot.send_message(message.chat.id, f"✅ <b>¡BIZUM ACEPTADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>Fondos Verificados</b>\n🪙 Recarga: +<code>{cantidad}</code> créditos sumados.", parse_mode="HTML")
+            
+            # 🔒 PRIVADO: Le manda el aviso automático al cliente a su propio chat a solas con el bot
+            try:
+                bot.send_message(target_uid, f"🎉 <b>¡BIZUM VERIFICADO CON ÉXITO!</b>\n─────────────────────\n Miembros del Staff han aprobado tu depósito.\n📥 Acreditados: +<code>{cantidad}</code> monedas.\n🪙 Total actual: <code>{nuevos_creditos}</code> créditos.\n─────────────────────\n🌟 <i>¡Gracias por tu confianza! Tu saldo está activo.</i>", parse_mode="HTML")
+            except Exception as e:
+                print(f"El cliente tiene el bot bloqueado en privado: {e}")
+    except Exception as e: 
+        bot.reply_to(message, f"❌ Error técnico al procesar aprobación: {e}")
 
-# Cierra el ticket falso y avisa de forma privada al estafador
+# 🔴 RECHAZAR BIZUM: Responde directamente en el chat activo (Grupo o privado) y avisa al cliente a solas
 @bot.message_handler(commands=['rechazar_bizum'])
 def reject_bizum_ticket(message):
     user_id = message.from_user.id
     args = message.text.split()
+    
+    # Candado estricto de Dueño Supremo
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     if len(args) < 2: return
+    
     try:
         target_uid = int(args[1])
         datos_cliente = verificar_registro(target_uid)
+        
         if datos_cliente:
             alias = datos_cliente[0]
-            bot.reply_to(message, f"❌ <b>¡BIZUM RECHAZADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>No Recibido / Falso</b>\n⚠️ Resolución: <i>Ticket cerrado sin abonar saldo.</i>", parse_mode="HTML")
-            bot.send_message(target_uid, f"❌ <b>¡ALERTA DE RECARGA FALLIDA!</b>\n─────────────────────\n⚠️ El Staff ha revisado la cuenta bancaria y <b>no ha encontrado ningún ingreso</b> con tu código.\n❌ Tu ticket ha sido rechazado.", parse_mode="HTML")
-    except: pass
+            
+            # 📢 DINÁMICO: Envía el cartel de rechazo al chat activo desde donde ejecutaste la orden (Grupo o Privado)
+            bot.send_message(message.chat.id, f"❌ <b>¡BIZUM RECHAZADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>No Recibido / Falso</b>\n⚠️ Resolución: <i>Ticket cerrado sin abonar saldo.</i>", parse_mode="HTML")
+            
+            # 🔒 PRIVADO: Le avisa de forma privada al cliente explicándole que su ticket fue denegado
+            try:
+                bot.send_message(target_uid, f"❌ <b>¡ALERTA DE RECARGA FALLIDA!</b>\n─────────────────────\n⚠️ El Staff ha revisado la cuenta bancaria y <b>no ha encontrado ningún ingreso</b> con tu código.\n❌ Tu ticket ha sido rechazado.\n💡 <i>Si crees que es un error, contacta al administrador aportando captura física del Bizum.</i>", parse_mode="HTML")
+            except Exception as e:
+                print(f"El cliente tiene el bot bloqueado en privado: {e}")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error técnico al procesar rechazo: {e}")
 
 @bot.message_handler(commands=['setvip'])
 def set_user_vip_admin(message):
@@ -409,6 +434,7 @@ def add_credits_admin(message):
         datos_cliente = verificar_registro(target_id)
         if datos_cliente: update_user_credits(target_id, datos_cliente[1] + cantidad)
     except: pass
+
 # ==========================================
 # # PARTE 4: COMANDOS PÚBLICOS DE CLIENTES, VERIFICADORES FINANCIEROS Y INFINITY POLLING RE-EJECUTABLE
 # ==========================================
