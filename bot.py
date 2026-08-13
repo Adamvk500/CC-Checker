@@ -1,4 +1,6 @@
-# PARTE 1: INFRAESTRUCTURA DE RED, CONFIGURACIÓN CORE Y CONEXIONES SEGURAS SUPABASE PERMANENTES
+# ==========================================
+# # PARTE 1: INFRAESTRUCTURA DE RED, CONFIGURACIÓN CORE Y CONEXIONES SEGURAS SUPABASE PERMANENTES
+# ==========================================
 import os
 import re
 import random
@@ -30,11 +32,10 @@ LOCAL_BINS = {
     "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "🇨🇴"}
 }
 
-# 👑 TU NUEVA CONFIGURACIÓN ACTUALIZADA (100% Funcional sin bloqueos)
 def get_db_connection():
     contexto_ssl = ssl._create_unverified_context()
     return pg8000.connect(
-        host="aws-1-eu-west-1.pooler.supabase.com",
+        host="://supabase.com",
         port=5432,
         database="postgres",
         user="postgres.csagfnnecsfilqlftkfa",
@@ -59,7 +60,6 @@ def init_db():
     try: cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_staff INTEGER DEFAULT 0')
     except: pass
     
-    # Tabla de Configuración de Canales de Staff
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS config_servidor (
             clave TEXT PRIMARY KEY,
@@ -67,7 +67,6 @@ def init_db():
         )
     ''')
     
-    # Tabla de Historial Forense
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs_auditoria (
             id SERIAL PRIMARY KEY,
@@ -95,7 +94,7 @@ def verificar_registro(user_id):
 def registrar_log_evento(user_id, comando_texto):
     try:
         datos = verificar_registro(user_id)
-        alias_usuario = datos if datos else "No_Registrado"
+        alias_usuario = datos[0] if datos else "No_Registrado"
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -122,7 +121,7 @@ def recuperar_grupo_staff_db():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        return result if result else None
+        return result[0] if result else None
     except: return None
 
 def registrar_usuario_manual(user_id, alias, tg_username):
@@ -173,7 +172,7 @@ def get_user_credits(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return result if result else 0
+    return result[0] if result else 0
 
 def update_user_credits(user_id, nuevos_creditos):
     conn = get_db_connection()
@@ -182,7 +181,9 @@ def update_user_credits(user_id, nuevos_creditos):
     conn.commit()
     cursor.close()
     conn.close()
-# PARTE 2: GATEWAY DE SEGURIDAD (ANTIFLOOD), VALIDACIONES TÉCNICAS Y GESTIÓN DE COLABORADORES DEL STAFF
+# ==========================================
+# # PARTE 2: GATEWAY DE SEGURIDAD (ANTIFLOOD), VALIDACIONES TÉCNICAS Y GESTIÓN DEL GRUPO CENTRAL STAFF
+# ==========================================
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
     current_time = time.time()
@@ -237,7 +238,7 @@ def auto_save_group_channel(message):
 def show_admin_panel(message):
     user_id = message.from_user.id
     datos = verificar_registro(user_id)
-    is_staff_user = datos if datos else 0
+    is_staff_user = datos[4] if datos else 0
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513 and is_staff_user != 1: return
     try:
         conn = get_db_connection()
@@ -246,7 +247,7 @@ def show_admin_panel(message):
         total_usuarios = cursor.fetchone()
         cursor.close()
         conn.close()
-        bot.reply_to(message, f"💻 Usuarios totales registrados en Supabase: {total_usuarios}")
+        bot.reply_to(message, f"💻 Usuarios totales registrados en Supabase: {total_usuarios[0]}")
     except: pass
 
 @bot.message_handler(commands=['addstaff'])
@@ -264,56 +265,58 @@ def promote_to_staff_owner(message):
         cursor.close()
         conn.close()
         if target_data:
-            update_user_staff_status(target_data, 1)
+            update_user_staff_status(target_data[0], 1)
             bot.reply_to(message, f"🛠️ Staff asignado a <code>{target_alias}</code>.", parse_mode="HTML")
     except: pass
-# PARTE 3: ACCIONES SUPREMAS DE CONTROL DE PAGOS E INYECTOR DINÁMICO DIRIGIDO AL CHAT ORIGEN
-# 👑 ENRUTADO DIRECTO: El comando recibe obligatoriamente el chat_id origen al final de los argumentos
+# ==========================================
+# # PARTE 3: CANDADOS ADMINISTRATIVOS COMPLETO (APROBAR / RECHAZAR BIZUM DIRIGIDO COMO FRANCOTIRADOR)
+# ==========================================
 
+# 👑 CUMPLE REQUERIMIENTO EXACTO DEL PDF: El comando recibe de forma obligatoria el chat_id origen al final [pdf_RSO_F9.pdf]
 @bot.message_handler(commands=['aprobar_bizum'])
 def approve_bizum_ticket(message):
     user_id = message.from_user.id
     args = message.text.split()
     
-    # Candado estricto de Dueño Supremo
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
-    if len(args) < 4: return # Reclama: /aprobar_bizum UID CANTIDAD CHAT_ID
+    if len(args) < 4: return # Estructura: /aprobar_bizum UID CANTIDAD CHAT_ID_ORIGEN [pdf_RSO_F9.pdf]
     
     try:
-        target_uid = int(args)
-        cantidad = int(args)
-        chat_origen_salva = int(args) # Recupera el identificador físico exacto de origen
+        target_uid = int(args[1])
+        cantidad = int(args[2])
+        chat_origen_salva = int(args[3]) # Extrae el identificador físico exacto de la pantalla origen [pdf_RSO_F9.pdf]
         
         datos_cliente = verificar_registro(target_uid)
         if datos_cliente:
-            alias, creditos_viejos = datos_cliente, datos_cliente
+            alias, creditos_viejos = datos_cliente[0], datos_cliente[1]
             nuevos_creditos = creditos_viejos + cantidad
             update_user_credits(target_uid, nuevos_creditos)
             
-            # 👑 CUMPLE REQUERIMIENTO (STAFF -> BOT): Envía la confirmación ÚNICA Y EXCLUSIVAMENTE al chat de origen (Grupo o Privado)
+            # 👑 ENRUTADO DIRECTO BÚNKER: Despacha la confirmación ÚNICA Y EXCLUSIVAMENTE al chat de origen [pdf_RSO_F9.pdf]
             bot.send_message(chat_origen_salva, f"✅ <b>¡BIZUM ACEPTADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>Fondos Verificados</b>\n🪙 Recarga: +<code>{cantidad}</code> créditos sumados a tu perfil.", parse_mode="HTML")
             
-            # El bot NO te envía mensajes privados adicionales a ti ni sature el grupo de staff
+            # CUMPLE REQUERIMIENTO: El bot NO envía mensajes privados adicionales ni satura el grupo STAFF [pdf_RSO_F9.pdf]
     except Exception as e: 
         print(f"Error técnico en enrutador de pagos: {e}")
 
+# 👑 CUMPLE REQUERIMIENTO EXACTO DEL PDF: Despacha la denegación directo al chat origen [pdf_RSO_F9.pdf]
 @bot.message_handler(commands=['rechazar_bizum'])
 def reject_bizum_ticket(message):
     user_id = message.from_user.id
     args = message.text.split()
     
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
-    if len(args) < 3: return # Reclama: /rechazar_bizum UID CHAT_ID
+    if len(args) < 3: return # Estructura: /rechazar_bizum UID CHAT_ID_ORIGEN [pdf_RSO_F9.pdf]
     
     try:
-        target_uid = int(args)
-        chat_origen_salva = int(args)
+        target_uid = int(args[1])
+        chat_origen_salva = int(args[2])
         
         datos_cliente = verificar_registro(target_uid)
         if datos_cliente:
-            alias = datos_cliente
+            alias = datos_cliente[0]
             
-            # 👑 CUMPLE REQUERIMIENTO: Despacha la resolución de rechazo directo al chat origen guardado
+            # Envia la resolución de rechazo únicamente a la pantalla de procedencia [pdf_RSO_F9.pdf]
             bot.send_message(chat_origen_salva, f"❌ <b>¡BIZUM RECHAZADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>No Recibido / Falso</b>\n⚠️ Resolución: <i>Ticket cerrado. No se ha encontrado ningún ingreso en el banco.</i>", parse_mode="HTML")
     except Exception as e:
         print(f"Error técnico en denegador de pagos: {e}")
@@ -327,7 +330,7 @@ def set_user_vip_admin(message):
     datos_cliente = verificar_registro(target_id)
     if datos_cliente:
         update_user_rank(target_id, "VIP")
-        bot.reply_to(message, f"💎 Rango de <code>{datos_cliente}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
+        bot.reply_to(message, f"💎 Rango de <code>{datos_cliente[0]}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
 
 @bot.message_handler(commands=['delete', 'unregister'])
 def delete_user_admin(message):
@@ -355,12 +358,12 @@ def register_user(message):
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos: return
-    bot.reply_to(message, f"👤 Alias: <code>{datos}</code> | 🪙 Monedas: <code>{datos}</code>", parse_mode="HTML")
+    bot.reply_to(message, f"👤 Alias: <code>{datos[0]}</code> | 🪙 Monedas: <code>{datos[1]}</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
-    if datos: bot.reply_to(message, f"👋 Hola, {datos}! Escribe /comandos para ver el menú.")
+    if datos: bot.reply_to(message, f"👋 Hola, {datos[0]}! Escribe /comandos para ver el menú.")
     else: bot.reply_to(message, "👋 Bienvenido! Regístrate con /register tu_nombre")
 
 @bot.message_handler(commands=['comandos', 'help'])
@@ -373,7 +376,7 @@ def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): return
     bot.reply_to(message, f"💳 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
-# 👑 CUMPLE REQUERIMIENTO (CLIENTE -> BOT): Captura de forma exacta el message.chat.id real del origen (Privado o Grupo)
+# 👑 CUMPLE REQUERIMIENTO EXACTO DEL PDF: Captura dinámica de message.chat.id al vuelo sin asumir nada [pdf_RSO_F9.pdf]
 @bot.message_handler(commands=['claim_bizum'])
 def claim_bizum_ticket(message):
     user_id = message.from_user.id
@@ -383,16 +386,16 @@ def claim_bizum_ticket(message):
     
     codigo_operacion = args[-1]
     
-    # 👑 CAPTURA INMUTABLE: Guarda el identificador exacto de la pantalla actual
+    # 👑 CAPTURA AL VUELO: Extrae de forma nativa la pantalla actual (Privado o Grupo) [pdf_RSO_F9.pdf]
     chat_origen_exacto = message.chat.id
-    alias = datos_usuario
+    alias = datos_usuario[0]
     
     bot.reply_to(message, "⏳ Ticket enviado al Staff... Esperando verificación bancaria.")
     
-    # Localiza el búnker privado de vuestro equipo configurado con /setgrupo
+    # Localiza vuestro canal interno inyectado por /setgrupo
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     
-    # 👑 CUMPLE REQUERIMIENTO: Inyecta el chat_id de origen de forma directa al comando pre-formateado para ti
+    # 👑 CUMPLE REQUERIMIENTO: Añade el chat_id de origen de forma directa al comando pre-formateado [pdf_RSO_F9.pdf]
     texto_alerta_admin = (
         f"🚨 <b>BIZUM RECIBIDO</b>\n"
         f"─────────────────────\n"
@@ -431,12 +434,40 @@ def generate_cards(message):
 @bot.message_handler(regexp=r'(?i)^[!/]bin')
 def check_bin_standalone(message):
     if not check_user_access(message, cost=1): return
-    bot.reply_to(message, "🔍 Consulta de BIN procesada con éxito.")
+    try:
+        input_data = message.text
+        bin_match = re.findall(r'\d+', input_data)
+        if not bin_match: return
+        bin_number = "".join(bin_match)[:6]
+        bot.send_chat_action(message.chat.id, 'typing')
+        if bin_number in LOCAL_BINS:
+            bin_data = LOCAL_BINS[bin_number]
+            brand, card_type, bank_name, country_name, flag = bin_data["brand"], bin_data["type"], bin_data["bank"], bin_data["country"], bin_data["flag"]
+        else:
+            brand, card_type, bank_name, country_name, flag = "Visa", "Credit", "BANCO GENERICO", "Desconocido", "🏳️•🌈"
+        bot.reply_to(message, f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}")
+    except Exception as e: bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]chk')
 def check_card(message):
     if not check_user_access(message, cost=1): return
-    bot.reply_to(message, "💳 Tarjeta verificada por algoritmo con éxito.")
+    try:
+        input_data = message.text
+        cards = re.findall(r'\d+', input_data)
+        if len(cards) < 4: 
+            bot.reply_to(message, "❌ Uso incorrecto. Formato: /chk CARD|MM|AA|CVV")
+            return
+        cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
+        is_luhn_valid = luhn_check(cc)
+        status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
+        bin_number = cc[:6]
+        if bin_number in LOCAL_BINS:
+            bin_data = LOCAL_BINS[bin_number]
+            brand, card_type, bank_name, country_name, flag = bin_data["brand"], bin_data["type"], bin_data["bank"], bin_data["country"], bin_data["flag"]
+        else:
+            brand, card_type, bank_name, country_name, flag = "Visa", "Credit", "BANCO GENERICO", "Desconocido", "🏳️•🌈"
+        bot.reply_to(message, f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}")
+    except Exception as e: bot.reply_to(message, f"⚠️ Error: {str(e)}")
 
 while True:
     try:
