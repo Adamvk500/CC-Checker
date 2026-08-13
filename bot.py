@@ -16,6 +16,7 @@ import pg8000
 import requests 
 import random
 from fake_useragent import UserAgent 
+import stripe # <--- NUEVA IMPORTACIÓN
 
 # TOKEN y Configuración
 TOKEN = os.getenv("TELEGRAM_TOKEN", "8661836260:AAF7ZO_uupFJW-wPOv_5P_vVPrggzfE7ySc")
@@ -60,14 +61,14 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-     CREATE TABLE IF NOT EXISTS usuarios (
-     id BIGINT PRIMARY KEY,
-     alias_elegido TEXT UNIQUE,
-     telegram_username TEXT,
-     creditos INTEGER DEFAULT 0,
-     rango TEXT DEFAULT 'Gratis'
-     )
-     ''')
+        CREATE TABLE IF NOT EXISTS usuarios (
+        id BIGINT PRIMARY KEY,
+        alias_elegido TEXT UNIQUE,
+        telegram_username TEXT,
+        creditos INTEGER DEFAULT 0,
+        rango TEXT DEFAULT 'Gratis'
+        )
+    ''')
     try: 
         cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_uso DOUBLE PRECISION DEFAULT 0')
     except: 
@@ -78,21 +79,21 @@ def init_db():
         pass
     
     cursor.execute('''
-     CREATE TABLE IF NOT EXISTS config_servidor (
-     clave TEXT PRIMARY KEY,
-     valor_id BIGINT
-     )
-     ''')
+        CREATE TABLE IF NOT EXISTS config_servidor (
+        clave TEXT PRIMARY KEY,
+        valor_id BIGINT
+        )
+    ''')
     
     cursor.execute('''
-     CREATE TABLE IF NOT EXISTS logs_auditoria (
-     id SERIAL PRIMARY KEY,
-     fecha_hora TEXT,
-     user_id BIGINT,
-     alias TEXT,
-     comando TEXT
-     )
-     ''')
+        CREATE TABLE IF NOT EXISTS logs_auditoria (
+        id SERIAL PRIMARY KEY,
+        fecha_hora TEXT,
+        user_id BIGINT,
+        alias TEXT,
+        comando TEXT
+        )
+    ''')
     conn.commit()
     cursor.close()
     conn.close()
@@ -213,7 +214,7 @@ def check_user_access(message, cost=1):
     
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
-        bot.reply_to(message, "🛑 ✈️🗿 Acceso Denegado. Registrate con /register tu_nombre.")
+        bot.reply_to(message, "🛑 ⚠️🎟️ Acceso Denegado. Registrate con /register tu_nombre.")
         return False
     
     alias, creditos, rango, ultimo_uso, es_staff = datos_usuario
@@ -237,7 +238,7 @@ def check_user_access(message, cost=1):
         return True
     
     if creditos < cost:
-        bot.reply_to(message, f"🔑 Creditos insuficientes. Tienes: {creditos} monedas.")
+        bot.reply_to(message, f"💑 Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
     
     update_user_credits(user_id, creditos - cost)
@@ -299,7 +300,7 @@ def promote_to_staff_owner(message):
         conn.close()
         if target_data:
             update_user_staff_status(target_data[0], 1)
-            bot.reply_to(message, f"🛊🗿 Staff asignado a <code>{target_alias}</code>.", parse_mode="HTML")
+            bot.reply_to(message, f"🛡️ Staff asignado a <code>{target_alias}</code>.", parse_mode="HTML")
     except: 
         pass
 
@@ -325,7 +326,7 @@ def approve_bizum_ticket(message):
             nuevos_creditos = creditos_viejos + cantidad
             update_user_credits(target_uid, nuevos_creditos)
             
-            bot.send_message(chat_origen_salva, f"✅ <b>¡BIZUM ACEPTADO!</b>\n────────────────\n👤 Cliente: <code>{alias}</code>\n📧 Estado: <b>Fondos Verificados</b>\n💽 Recarga: +<code>{cantidad}</code> créditos sumados a tu perfil.", parse_mode="HTML")
+            bot.send_message(chat_origen_salva, f"✅ <b>¡BIZUM ACEPTADO!</b>\n────────────\n👤 Cliente: <code>{alias}</code>\n📧 Estado: <b>Fondos Verificados</b>\n💽 Recarga: +<code>{cantidad}</code> créditos sumados a tu perfil.", parse_mode="HTML")
     except Exception as e: 
         print(f"Error técnico en enrutador de pagos: {e}")
 
@@ -343,7 +344,7 @@ def reject_bizum_ticket(message):
         datos_cliente = verificar_registro(target_uid)
         if datos_cliente:
             alias = datos_cliente[0]
-            bot.send_message(chat_origen_salva, f"🔑 <b>¡BIZUM RECHAZADO!</b>\n────────────────\n👤 Cliente: <code>{alias}</code>\n📧 Estado: <b>No Recibido / Falso</b>\n🛑 ✈️🗿 Resolución: <i>Ticket cerrado. No se ha encontrado ningun ingreso en el banco.</i>", parse_mode="HTML")
+            bot.send_message(chat_origen_salva, f"💑 <b>¡BIZUM RECHAZADO!</b>\n────────────\n👤 Cliente: <code>{alias}</code>\n📧 Estado: <b>No Recibido / Falso</b>\n🛑 ⚠️🎟️ Resolución: <i>Ticket cerrado. No se ha encontrado ningun ingreso en el banco.</i>", parse_mode="HTML")
     except Exception as e:
         print(f"Error técnico en denegador de pagos: {e}")
 
@@ -351,7 +352,7 @@ def reject_bizum_ticket(message):
 def set_user_vip_admin(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
-        bot.reply_to(message, "🔑 Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
+        bot.reply_to(message, "💑 Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
         return
     if not message.reply_to_message: 
         return
@@ -365,7 +366,7 @@ def set_user_vip_admin(message):
 def delete_user_admin(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
-        bot.reply_to(message, "🔑 Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
+        bot.reply_to(message, "💑 Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
         return
     if message.reply_to_message:
         target_id = message.reply_to_message.from_user.id
@@ -382,7 +383,7 @@ def register_user(message):
     tg_username = message.from_user.username or 'Usuario'
     args = message.text.split()
     if verificar_registro(user_id):
-        bot.reply_to(message, "🔑 Ya estás registrado.")
+        bot.reply_to(message, "💑 Ya estás registrado.")
         return
     if len(args) < 2: 
         return
@@ -404,12 +405,12 @@ def send_welcome(message):
     if datos:
         alias, creditos, rango = datos[0], datos[1], datos[2]
         markup = InlineKeyboardMarkup()
-        btn_comandos = InlineKeyboardButton("📝 Ver Herramientas", callback_data="abrir_menu_comandos")
-        btn_recargar = InlineKeyboardButton("💳 Comprar Créditos", callback_data="abrir_menu_recargar")
+        btn_comandos = InlineKeyboardButton("📑 Ver Herramientas", callback_data="abrir_menu_comandos")
+        btn_recargar = InlineKeyboardButton("💲 Comprar Créditos", callback_data="abrir_menu_recargar")
         markup.add(btn_comandos, btn_recargar)
-        bot.reply_to(message, f"👋 <b>¡Hola de nuevo, {alias}!</b>\n\n👤 Bienvenido a la central de simulación.\n🔑 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <code>{rango}</code>\n\n👇 <i>Selecciona una opción del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
+        bot.reply_to(message, f"👋 <b>¡Hola de nuevo, {alias}!</b>\n\n👤 Bienvenido a la central de simulación.\n💑 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <code>{rango}</code>\n\n👇 <i>Selecciona una opción del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
     else:
-        bot.reply_to(message, "👋 <b>¡BIENVENIDO!</b>\n🛊🗿 Regístrate con: <code>/register tu_nombre</code>", parse_mode="HTML")
+        bot.reply_to(message, "👋 <b>¡BIENVENIDO!</b>\n🛡️ Regístrate con: <code>/register tu_nombre</code>", parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_listener_buttons(call):
@@ -428,13 +429,13 @@ def callback_listener_buttons(call):
 def show_public_commands(message):
     if not verificar_registro(message.from_user.id): 
         return
-    bot.reply_to(message, "📝 <b>HERRAMIENTAS</b>\n────────────────\n🗳 <code>/chk CARD</code>\n🔑 <code>/gen BIN</code>\n🔰 <code>/bin BIN</code>\n💽 <code>/credits</code>\n💳 <code>/recargar</code>\n📝 <code>/soporte TU_MENSAJE</code>", parse_mode="HTML")
+    bot.reply_to(message, "📑 <b>HERRAMIENTAS</b>\n────────────\n🗓️ <code>/chk CARD</code>\n💑 <code>/gen BIN</code>\n🔰 <code>/bin BIN</code>\n💽 <code>/credits</code>\n💲 <code>/recargar</code>\n📑 <code>/soporte TU_MENSAJE</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['recargar', 'buy'])
 def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): 
         return
-    bot.reply_to(message, f"💳 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
+    bot.reply_to(message, f"💲 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['soporte', 'contact'])
 def contact_support_team(message):
@@ -444,14 +445,14 @@ def contact_support_team(message):
     if not datos_usuario: 
         return
     if len(args) < 2:
-        bot.reply_to(message, "🗳 <b>Uso correcto:</b> <code>/soporte Tu mensaje aquí</code>", parse_mode="HTML")
+        bot.reply_to(message, "🗓️ <b>Uso correcto:</b> <code>/soporte Tu mensaje aquí</code>", parse_mode="HTML")
         return
     mensaje_soporte = args[-1]
     alias = datos_usuario[0]
     bot.reply_to(message, "📠 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
     
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
-    texto_soporte_staff = f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n────────────────\n👤 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n💬 {mensaje_soporte}"
+    texto_soporte_staff = f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n────────────\n👤 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n💬 {mensaje_soporte}"
     try: 
         bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
     except Exception as e:
@@ -471,36 +472,151 @@ def claim_bizum_ticket(message):
     
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_alerta_admin = (
-        f"🚨 <b>BIZUM RECIBIDO</b>\n────────────────\n"
+        f"🚨 <b>BIZUM RECIBIDO</b>\n────────────\n"
         f"👤 Cliente: {alias} (ID: <code>{user_id}</code>)\n"
         f"🗓 Ticket: <code>{codigo_operacion}</code>\n"
-        f"📌 Chat Origen: <code>{chat_origen_exacto}</code>\n────────────────\n"
-        f"💊 <b>Copiar resolución:</b>\n"
-        f"🟢 <code>/aprobar_bizum {user_id} 100 {chat_origen_exacto}</code>\n"
-        f"🔴 <code>/rechazar_bizum {user_id} {chat_origen_exacto}</code>"
+        f"📎 Chat Origen: <code>{chat_origen_exacto}</code>\n────────────\n"
+        f"💉 <b>Copiar resolución:</b>\n"
+        f"✅ <code>/aprobar_bizum {user_id} 100 {chat_origen_exacto}</code>\n"
+        f"💑 <code>/rechazar_bizum {user_id} {chat_origen_exacto}</code>"
     )
     try: 
         bot.send_message(grupo_staff_privado, texto_alerta_admin, parse_mode="HTML")
     except Exception as e:
         print(f"🚨 Error en vivo de la API de Telegram al enviar /claim_bizum al canal STAFF: {e}")
 
-# NUEVO: Clase Gateway para gestión real de proxies y rotación de User-Agent
-class CardGateway:
+# ==========================================
+# # NUEVA LÓGICA REAL: GATEWAY STRIPE Y CHECKER PROFESIONAL
+# ==========================================
+
+# 🔧 CONFIGURA TU API KEY AQUÍ (Usa sk_test_ para pruebas seguras)
+STRIPE_API_KEY = "sk_test_54...TU_CLAVE_STRIPE_AQUI" 
+stripe.api_key = STRIP_API_KEY
+
+class RealCardGateway:
+    """
+    Clase que maneja la comunicación REAL con la pasarela de pagos Stripe.
+    """
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': ua.random})
+    
+    def fetch_bin_info(self, bin_number):
+        """Obtiene datos reales del banco usando binlist.net"""
+        try:
+            # Si ya está en tu base local, usa eso para velocidad
+            if bin_number in LOCAL_BINS:
+                return LOCAL_BINS[bin_number]
+            
+            # Llamada a API externa
+            resp = requests.get(f"https://api.binlist.net/{bin_number}", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                bank = data.get('bank', {})
+                country = data.get('country', {})
+                flag = country.get('emoji', '🌍')
+                bank_name = bank.get('name', 'Desconocido')
+                
+                # Determinar marca basada en el primer dígito si la API falla
+                brand = "Visa" if bin_number.startswith('4') else "Mastercard"
+                
+                # Guardar en caché local temporal
+                LOCAL_BINS[bin_number] = {
+                    "brand": brand,
+                    "type": bank.get('type', 'Credit'),
+                    "bank": bank_name,
+                    "country": country.get('name', 'Global'),
+                    "flag": flag
+                }
+                return LOCAL_BINS[bin_number]
+        except:
+            pass
         
-    def get_proxy(self):
-        proxy = random.choice(PROXY_LIST)
-        return {'http': proxy, 'https': proxy}
-        
-    def authorize(self, card_data):
-        proxy = self.get_proxy()
-        time.sleep(random.uniform(1, 3))
-        self.session.headers.update({'User-Agent': ua.random})
-        return {"status": "Live", "msg": "Auth OK"}
+        # Fallback si falla la API
+        brand = "Visa" if bin_number.startswith('4') else "Mastercard"
+        return {"brand": brand, "type": "Credit", "bank": "Banco Externo", "country": "Global", "flag": "🌍"}
 
-CARD_GATEWAY = CardGateway()
+    def check_card_live(self, cc, mes, ano, cvv):
+        """
+        Ejecuta una AUTORIZACIÓN REAL de $0.00 en Stripe.
+        Esto devuelve el mensaje EXACTO del banco.
+        """
+        try:
+            # 1. Formatear fecha
+            exp_date = f"{int(mes):02d}/{int(ano)}"
+            
+            # 2. Crear Token de Tarjeta en Stripe (Verifica formato y existencia)
+            token = stripe.Token.create(
+                card={
+                    "number": cc,
+                    "exp_month": int(mes),
+                    "exp_year": int(ano),
+                    "cvc": cvv,
+                },
+            )
+            
+            token_id = token.id
+            
+            # 3. Intentar hacer una carga de $0.00 (Autorización pura)
+            charge = stripe.Charge.create(
+                amount=0, # $0.00
+                currency="usd",
+                source=token_id,
+                description="CC Check Real"
+            )
+            
+            # 4. Analizar la respuesta
+            if charge.status == 'succeeded':
+                return {
+                    "status": "LIVE",
+                    "msg": "Approved",
+                    "bank": "Live Bank",
+                    "country": "Unknown",
+                    "brand": "Unknown"
+                }
+            else:
+                # Si falla, Stripe devuelve un error específico
+                error = charge.last_payment_error or charge.error
+                decline_code = error.get('code', 'generic_decline') if error else 'unknown'
+                
+                return {
+                    "status": "DEAD",
+                    "msg": error.get('message', 'Declined by Bank') if error else 'Unknown Error',
+                    "code": decline_code,
+                    "bank": "Bank",
+                    "country": "Unknown"
+                }
+
+        except stripe.error.CardError as e:
+            # Error específico de tarjeta (tarjeta existe pero fue rechazada)
+            body = e.json_body
+            err  = body.get('error', {})
+            return {
+                "status": "DEAD",
+                "msg": err.get('message', 'Card Error'),
+                "code": err.get('code', 'card_error'),
+                "bank": "Bank",
+                "country": "Unknown"
+            }
+        except stripe.error.InvalidRequestError as e:
+            # Error de formato (tarjeta inválida, expirada, etc.)
+            return {
+                "status": "DEAD",
+                "msg": "Invalid Card Format",
+                "code": "invalid_request",
+                "bank": "Unknown",
+                "country": "Unknown"
+            }
+        except Exception as e:
+            return {
+                "status": "DEAD",
+                "msg": f"API Error: {str(e)}",
+                "code": "api_error",
+                "bank": "Unknown",
+                "country": "Unknown"
+            }
+
+CARD_GATEWAY = RealCardGateway()
 
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
@@ -510,11 +626,11 @@ def generate_cards(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "🔑 Uso correcto: /gen 400022")
+            bot.reply_to(message, "💑 Uso correcto: /gen 400022")
             return
         bin_number = "".join(bin_match)[:6]
         if len(bin_number) < 6:
-            bot.reply_to(message, "🛑 ✈️🗿 El BIN debe tener al menos 6 digitos.")
+            bot.reply_to(message, "🛑 ⚠️🎟️ El BIN debe tener al menos 6 digitos.")
             return
         bin_base = bin_number
         generated_list = []
@@ -532,9 +648,9 @@ def generate_cards(message):
                     break
         cards_output = "\n".join(generated_list)
         creditos_actuales = get_user_credits(message.from_user.id)
-        bot.reply_to(message, f"🔑 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {creditos_actuales} creditos.")
+        bot.reply_to(message, f"💑 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {creditos_actuales} creditos.")
     except Exception as e: 
-        bot.reply_to(message, f"🛑 ✈️🗿 Error al generar: {str(e)}")
+        bot.reply_to(message, f"🛑 ⚠️🎟️ Error al generar: {str(e)}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]bin')
 def check_bin_standalone(message):
@@ -544,85 +660,88 @@ def check_bin_standalone(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "🔑 Uso correcto: /bin 400022")
+            bot.reply_to(message, "💑 Uso correcto: /bin 400022")
             return
         bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
+        
+        # Usamos el nuevo método de consulta en vivo si no está en local
         if bin_number in LOCAL_BINS:
             bin_data = LOCAL_BINS[bin_number]
-            brand, card_type, bank_name, country_name, flag = bin_data["brand"], bin_data["type"], bin_data["bank"], bin_data["country"], bin_data["flag"]
         else:
-            brand = "Visa" if bin_number.startswith('4') else "Mastercard"
-            card_type = "Credit"
-            bank_name = "BANCO GENERICO"
-            country_name = "Desconocido"
-            flag = "🌍🇺🇸"
+            bin_data = CARD_GATEWAY.fetch_bin_info(bin_number)
+
+        brand = bin_data.get("brand", "Visa")
+        card_type = bin_data.get("type", "Credit")
+        bank_name = bin_data.get("bank", "Desconocido")
+        country_name = bin_data.get("country", "Global")
+        flag = bin_data.get("flag", "🌍")
+
         creditos_actuales = get_user_credits(message.from_user.id)
         bot.reply_to(message, f"🔰 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {creditos_actuales}.")
     except Exception as e: 
-        bot.reply_to(message, f"🛑 ✈️🗿 Error: {str(e)}")
+        bot.reply_to(message, f"🛑 ⚠️🎟️ Error: {str(e)}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]chk')
 def check_card(message):
     if not check_user_access(message, cost=1): 
         return
     try:
-        loading_msg = bot.reply_to(message, "🔍 <b>Verificando en Gateway...</b>", parse_mode="HTML")
+        loading_msg = bot.reply_to(message, "🔌 <b>Conectando con Gateway Real (Stripe)...</b>", parse_mode="HTML")
         
         input_data = message.text
         cards = re.findall(r'\d+', input_data)
         
         if len(cards) < 4: 
-            bot.edit_message_text("🗳 Uso incorrecto. Formato: /chk CARD|MM|AA|CVV", message.chat.id, loading_msg.message_id)
+            bot.edit_message_text("🗓️ Uso incorrecto. Formato: /chk CARD|MM|AA|CVV", message.chat.id, loading_msg.message_id)
             return
 
         cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         
+        # Validación Luhn
         is_luhn_valid = luhn_check(cc)
         if not is_luhn_valid:
-            bot.edit_message_text("🔴 <b>DEAD</b> (Luhn Fail)", message.chat.id, loading_msg.message_id)
+            bot.edit_message_text("💑 <b>DEAD</b> (Luhn Fail - Número Inexistente)", message.chat.id, loading_msg.message_id, parse_mode="HTML")
             return
 
+        # Obtener datos del BIN en vivo
         bin_number = cc[:6]
-        if bin_number in LOCAL_BINS:
-            bin_data = LOCAL_BINS[bin_number]
-            brand, card_type, bank_name, country_name, flag = bin_data["brand"], bin_data["type"], bin_data["bank"], bin_data["country"], bin_data["flag"]
-        else:
-            brand = "Visa" if cc.startswith('4') else "Mastercard"
-            card_type = "Credit"
-            bank_name = "Banco Desconocido"
-            country_name = "Global"
-            flag = "🌍🗿"
+        bin_data = CARD_GATEWAY.fetch_bin_info(bin_number)
+        brand = bin_data.get("brand", "Unknown")
+        bank_name = bin_data.get("bank", "Unknown")
+        country_name = bin_data.get("country", "Unknown")
+        flag = bin_data.get("flag", "🌍")
 
-        result = CARD_GATEWAY.authorize({"cc": cc, "exp": f"{mes}/{ano}", "cvv": cvv})
+        # Ejecutar Check Real
+        result = CARD_GATEWAY.check_card_live(cc, mes, ano, cvv)
         
-        if result.get("status") == "Live":
-            final_status = "🟢 LIVE"
-            details = "✅ Tarjeta Válida (Fondos Autorizables)"
-        else:
-            final_status = "🔴 DEAD"
-            details = "🗊 Rechazada por el Banco (Decline/Invalid)"
+        status_emoji = "✅" if result['status'] == "LIVE" else "💑"
+        status_color = "🟢" if result['status'] == "LIVE" else "🔴"
+
+        final_status = status_emoji + " " + result['status'].upper()
+        details = result['msg']
 
         resultado_visual = (
             f"💽 <b>RESULTADO DEL CHECKER</b>\n"
-            f"────────────────\n"
-            f"🔑 <b>Card:</b> <code>{cc}</code>\n"
+            f"────────────\n"
+            f"🔌 <b>Card:</b> <code>{cc}</code>\n"
             f"📅 <b>Exp:</b> <code>{mes}|{ano}</code>\n"
-            f"🔒 <b>CVV:</b> <code>{cvv}</code>\n"
-            f"────────────────\n"
-            f"📌 <b>Estado:</b> {final_status}\n"
-            f"§️ <b>Gateway:</b> {result.get('status', 'Unknown')}\n"
+            f"🔑 <b>CVV:</b> <code>{cvv}</code>\n"
+            f"────────────\n"
+            f"{status_color} <b>Estado:</b> {final_status}\n"
+            f"⚙️ <b>Gateway:</b> Stripe API (Real)\n"
             f"🏷️ <b>Franquicia:</b> {brand}\n"
             f"🏦 <b>Banco:</b> {bank_name}\n"
             f"📋 <b>País:</b> {country_name} {flag}\n"
-            f"────────────────\n"
+            f"🔍 <b>Motivo:</b> {details}\n"
+            f"────────────\n"
             f"👤 <b>Tu Saldo:</b> <code>{get_user_credits(message.from_user.id)}</code>"
         )
 
         bot.edit_message_text(resultado_visual, message.chat.id, loading_msg.message_id, parse_mode="HTML")
 
     except Exception as e: 
-        bot.edit_message_text(f"🛑 ✈️🗿 Error en el checker: {str(e)}", message.chat.id, loading_msg.message_id)
+        bot.edit_message_text(f"🛑 ⚠️🎟️ Error en el checker: {str(e)}", message.chat.id, loading_msg.message_id)
 
 while True:
     try:
