@@ -280,39 +280,94 @@ def promote_to_staff_owner(message):
 def approve_bizum_ticket(message):
     user_id = message.from_user.id
     args = message.text.split()
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
-    if len(args) < 4: return 
+
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        return
+
+    if len(args) < 4:
+        bot.reply_to(
+            message,
+            "❌ Uso: /aprobar_bizum USER_ID CANTIDAD CHAT_ID"
+        )
+        return
+
     try:
-        target_uid = int(args)
-        cantidad = int(args)
-        chat_origen_salva = int(args) 
-        
+        target_uid = int(args[1])
+        cantidad = int(args[2])
+        chat_origen_salva = int(args[3])
+
         datos_cliente = verificar_registro(target_uid)
-        if datos_cliente:
-            alias, creditos_viejos = datos_cliente, datos_cliente
-            nuevos_creditos = creditos_viejos + cantidad
-            update_user_credits(target_uid, nuevos_creditos)
-            
-            # Enrutado directo síncrono al chat que generó la solicitud original
-            bot.send_message(chat_origen_salva, f"✅ <b>¡BIZUM ACEPTADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>Fondos Verificados</b>\n🪙 Recarga: +<code>{cantidad}</code> créditos sumados a tu perfil.", parse_mode="HTML")
-    except Exception as e: 
-        print(f"Error técnico en enrutador de pagos: {e}")
+
+        if not datos_cliente:
+            bot.reply_to(message, "❌ Usuario no encontrado en la base de datos.")
+            return
+
+        # verificar_registro devuelve:
+        # alias, creditos, rango, ultimo_uso, es_staff
+        alias, creditos_viejos, rango, ultimo_uso, es_staff = datos_cliente
+
+        nuevos_creditos = creditos_viejos + cantidad
+        update_user_credits(target_uid, nuevos_creditos)
+
+        bot.send_message(
+            chat_origen_salva,
+            f"✅ <b>¡BIZUM ACEPTADO!</b>\n"
+            f"─────────────────────\n"
+            f"👤 Cliente: <code>{alias}</code>\n"
+            f"📥 Estado: <b>Fondos Verificados</b>\n"
+            f"🪙 Recarga: +<code>{cantidad}</code> créditos sumados a tu perfil.",
+            parse_mode="HTML"
+        )
+
+        bot.reply_to(message, "✅ Bizum aprobado correctamente.")
+
+    except Exception as e:
+        print(f"🚨 Error técnico en aprobar_bizum: {e}")
+        bot.reply_to(message, f"❌ Error al procesar la aprobación: {e}")
+
 
 @bot.message_handler(commands=['rechazar_bizum'])
 def reject_bizum_ticket(message):
     user_id = message.from_user.id
     args = message.text.split()
-    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
-    if len(args) < 3: return 
+
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        return
+
+    if len(args) < 3:
+        bot.reply_to(
+            message,
+            "❌ Uso: /rechazar_bizum USER_ID CHAT_ID"
+        )
+        return
+
     try:
-        target_uid = int(args)
-        chat_origen_salva = int(args)
+        target_uid = int(args[1])
+        chat_origen_salva = int(args[2])
+
         datos_cliente = verificar_registro(target_uid)
-        if datos_cliente:
-            alias = datos_cliente
-            bot.send_message(chat_origen_salva, f"❌ <b>¡BIZUM RECHAZADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>No Recibido / Falso</b>\n⚠️ Resolución: <i>Ticket cerrado. No se ha encontrado ningún ingreso en el banco.</i>", parse_mode="HTML")
+
+        if not datos_cliente:
+            bot.reply_to(message, "❌ Usuario no encontrado.")
+            return
+
+        alias = datos_cliente[0]
+
+        bot.send_message(
+            chat_origen_salva,
+            f"❌ <b>¡BIZUM RECHAZADO!</b>\n"
+            f"─────────────────────\n"
+            f"👤 Cliente: <code>{alias}</code>\n"
+            f"📥 Estado: <b>No Recibido / Falso</b>\n"
+            f"⚠️ Resolución: <i>Ticket cerrado.</i>",
+            parse_mode="HTML"
+        )
+
+        bot.reply_to(message, "✅ Bizum rechazado correctamente.")
+
     except Exception as e:
-        print(f"Error técnico en denegador de pagos: {e}")
+        print(f"🚨 Error técnico en rechazar_bizum: {e}")
+        bot.reply_to(message, f"❌ Error al procesar el rechazo: {e}")
 
 @bot.message_handler(commands=['setvip'])
 def set_user_vip_admin(message):
