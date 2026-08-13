@@ -11,7 +11,6 @@ from datetime import datetime
 from threading import Thread
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
-# 👑 IMPORTANTE: Importamos los tipos de teclado interactivo de la API de Telegram
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import pg8000
 
@@ -116,6 +115,7 @@ def guardar_grupo_staff_db(chat_id):
     cursor.close()
     conn.close()
 
+# 👑 CORREGIDO: Extracción estricta del índice [0] para desempaquetar la tupla y entregar el entero puro a Render
 def recuperar_grupo_staff_db():
     try:
         conn = get_db_connection()
@@ -124,8 +124,10 @@ def recuperar_grupo_staff_db():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        return result if result else None
-    except: return None
+        return result[0] if result else None
+    except Exception as e:
+        print(f"Error forense al leer la ID del grupo en Supabase: {e}")
+        return None
 
 def registrar_usuario_manual(user_id, alias, tg_username):
     conn = get_db_connection()
@@ -235,7 +237,7 @@ def auto_save_group_channel(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     guardar_grupo_staff_db(message.chat.id)
-    bot.reply_to(message, f"🎯 <b>¡GRUPO DE STAFF CONFIGURADO!</b>\nLas alertas de Bizum y soporte caerán aquí de forma centralizada.", parse_mode="HTML")
+    bot.reply_to(message, f"🎯 <b>¡GRUPO DE STAFF CONFIGURADO!</b>\nLas alertas de Bizum cazarán de forma centralizada el entero puro.", parse_mode="HTML")
 
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
@@ -332,9 +334,8 @@ def delete_user_admin(message):
         datos_cliente = verificar_registro(target_id)
         if datos_cliente: eliminar_usuario_db(target_id)
 # ==========================================
-# # PARTE 4: COMANDOS PÚBLICOS DE USUARIOS, MANEJADOR DE BOTONES INLINE Y INFINITY POLLING
+# # PARTE 4: COMANDOS PÚBLICOS, MANEJADOR DE BOTONES INLINE CONGELADO INTEGRO Y INFINITY POLLING
 # ==========================================
-
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
@@ -352,48 +353,31 @@ def register_user(message):
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos: return
-    # 👑 CORREGIDO: Indexación fija individual para limpiar los corchetes de Supabase
-    alias = datos[0]
-    creditos = datos[1]
-    rango = datos[2]
-    bot.reply_to(message, f"👤 <b>CUANTE DE USUARIO</b>\n👤 Alias: <code>{alias}</code>\n🪙 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <b>{rango}</b>", parse_mode="HTML")
+    alias, creditos, rango = datos, datos, datos
+    bot.reply_to(message, f"👤 <b>CUENTA</b>\n👤 Alias: <code>{alias}</code>\n🪙 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <b>{rango}</b>", parse_mode="HTML")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
     if datos:
-        # 👑 CORREGIDO: Descompresión limpia por índices de strings para eliminar la tupla de la foto
-        alias = datos[0]
-        creditos = datos[1]
-        rango = datos[2]
-        
-        # Generación de la botonera inline minimalista
+        alias, creditos, rango = datos, datos, datos
         markup = InlineKeyboardMarkup()
         btn_comandos = InlineKeyboardButton("📚 Ver Herramientas", callback_data="abrir_menu_comandos")
         btn_recargar = InlineKeyboardButton("💳 Comprar Créditos", callback_data="abrir_menu_recargar")
         markup.add(btn_comandos, btn_recargar)
-        
         bot.reply_to(message, f"👋 <b>¡Hola de nuevo, {alias}!</b>\n\n👑 Bienvenido a la central de simulación.\n🌕 Saldo: <code>{creditos}</code> créditos\n🔰 Rango: <code>{rango}</code>\n\n👇 <i>Selecciona una opción del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
     else:
         bot.reply_to(message, "👋 <b>¡BIENVENIDO!</b>\n🛡️ Regístrate con: <code>/register tu_nombre</code>", parse_mode="HTML")
 
-# 🤖 CORREGIDO INTERACTIVO: Captura el click y suplanta la ID del bot por la del usuario real que pulsó el botón
+# 🤖 CONGELADO INTEGRO: Mantiene al 100% vuestra botonera interactiva clonada funcional exitosa
 @bot.callback_query_handler(func=lambda call: True)
 def callback_listener_buttons(call):
-    # 👑 Quita el estado de "cargando" (reloj de arena) de Telegram al instante
-    try:
-        bot.answer_callback_query(call.id)
+    try: bot.answer_callback_query(call.id)
     except: pass
-    
-    # 🔐 CLONADOR DE IDENTIDAD: Clonamos el mensaje y forzamos la ID de la persona real para que el bot la reconozca
     mensaje_clonado = call.message
     mensaje_clonado.from_user.id = call.from_user.id
-    
-    # Ruteo dinámico reutilizando las funciones nativas sin duplicar lógica
-    if call.data == "abrir_menu_comandos":
-        show_public_commands(mensaje_clonado)
-    elif call.data == "abrir_menu_recargar":
-        dual_recharge_menu(mensaje_clonado)
+    if call.data == "abrir_menu_comandos": show_public_commands(mensaje_clonado)
+    elif call.data == "abrir_menu_recargar": dual_recharge_menu(mensaje_clonado)
 
 @bot.message_handler(commands=['comandos', 'help'])
 def show_public_commands(message):
@@ -405,41 +389,40 @@ def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): return
     bot.reply_to(message, f"💳 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
-# 📢 COMANDO DE SOPORTE ENTRANTE
+# 📢 REQUERIMIENTO: Auditoría de error visible levantada en consola, eliminando el pass ciego
 @bot.message_handler(commands=['soporte', 'contact'])
 def contact_support_team(message):
     user_id = message.from_user.id
     args = message.text.split(maxsplit=1)
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario: return
-    
     if len(args) < 2:
         bot.reply_to(message, "✏️ <b>Uso correcto:</b> <code>/soporte Tu mensaje aquí</code>", parse_mode="HTML")
         return
-        
     mensaje_soporte = args[-1]
-    alias = datos_usuario[0]
+    alias = datos_usuario
     bot.reply_to(message, "📥 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
     
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_soporte_staff = f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n💬 Mensaje: <i>{mensaje_soporte}</i>"
-    try: bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
-    except: pass
+    try: 
+        bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
+    except Exception as e:
+        print(f"🚨 Error en vivo de la API de Telegram al enviar /soporte al canal STAFF: {e}")
 
+# 📢 REQUERIMIENTO: Auditoría de error visible levantada en consola para Bizum
 @bot.message_handler(commands=['claim_bizum'])
 def claim_bizum_ticket(message):
     user_id = message.from_user.id
     args = message.text.split()
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario or len(args) < 2: return
-    
     codigo_operacion = args[-1]
     chat_origen_exacto = message.chat.id
-    alias = datos_usuario[0]
-    
+    alias = datos_usuario
     bot.reply_to(message, "⏳ Ticket enviado al Staff... Esperando verificación bancaria.")
-    grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     
+    grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_alerta_admin = (
         f"🚨 <b>BIZUM RECIBIDO</b>\n─────────────────────\n"
         f"👤 Cliente: {alias} (ID: <code>{user_id}</code>)\n"
@@ -449,8 +432,10 @@ def claim_bizum_ticket(message):
         f"🟢 <code>/aprobar_bizum {user_id} 100 {chat_origen_exacto}</code>\n"
         f"🔴 <code>/rechazar_bizum {user_id} {chat_origen_exacto}</code>"
     )
-    try: bot.send_message(grupo_staff_privado, texto_alerta_admin, parse_mode="HTML")
-    except: pass
+    try: 
+        bot.send_message(grupo_staff_privado, texto_alerta_admin, parse_mode="HTML")
+    except Exception as e:
+        print(f"🚨 Error en vivo de la API de Telegram al enviar /claim_bizum al canal STAFF: {e}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
 def generate_cards(message):
