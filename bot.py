@@ -1,4 +1,6 @@
-# PARTE 1: CONFIGURACIÓN CORE, TABLAS DE MEMORIA DINÁMICA Y CONECTOR DE RED SUPABASE
+# ==========================================
+# # PARTE 1: CONFIGURACIÓN CORE, TABLAS DE MEMORIA DE CLIENTES Y CONECTOR SEGURO SUPABASE
+# ==========================================
 import os
 import re
 import random
@@ -59,10 +61,12 @@ def init_db():
     except: pass
     try: cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_staff INTEGER DEFAULT 0')
     except: pass
+    
+    # 👑 REQUERIMIENTO 3: Columna de asociación de grupo única e inmutable por cliente (cliente -> chat_id)
     try: cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS grupo_origen BIGINT DEFAULT 0')
     except: pass
     
-    # Tabla de Configuración Global del Servidor
+    # Tabla de Configuración de Canales Administrativos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS config_servidor (
             clave TEXT PRIMARY KEY,
@@ -70,7 +74,7 @@ def init_db():
         )
     ''')
     
-    # Tabla de Logs
+    # Tabla de Historial de Logs Forenses
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs_auditoria (
             id SERIAL PRIMARY KEY,
@@ -98,7 +102,7 @@ def verificar_registro(user_id):
 def registrar_log_evento(user_id, comando_texto):
     try:
         datos = verificar_registro(user_id)
-        alias_usuario = datos if datos else "No_Registrado"
+        alias_usuario = datos[0] if datos else "No_Registrado"
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -125,10 +129,10 @@ def recuperar_grupo_staff_db():
         result = cursor.fetchone()
         cursor.close()
         conn.close()
-        return result if result else None
+        return result[0] if result else None
     except: return None
 
-# Actualiza dinámicamente el grupo donde el cliente opera para saber a dónde responderle
+# 👑 REQUERIMIENTO 3: Vincula y actualiza de forma segura la asociación del cliente sin chocar con otros
 def vincular_grupo_usuario(user_id, chat_id):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -170,8 +174,32 @@ def update_user_staff_status(user_id, nivel_staff):
     cursor.close()
     conn.close()
 
+def update_user_timestamp(user_id, timestamp):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET ultimo_uso = %s WHERE id = %s', (timestamp, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def get_user_credits(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT creditos FROM usuarios WHERE id = %s', (user_id,))
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return result[0] if result else 0
+
+def update_user_credits(user_id, nuevos_creditos):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE usuarios SET creditos = %s WHERE id = %s', (nuevos_creditos, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
 # ==========================================
-# # PARTE 2: FILTRO DE ACCESO ANTIFLOOD, CONTROL DE ENTRADA Y COMANDO DE CONTROL PARA ENLACES DE INVITACIÓN
+# # PARTE 2: GATEWAY DE SEGURIDAD (ANTIFLOOD), ALGORITMO LUHN Y SISTEMA SILENCIOSO DE MAPEADO DE GRUPOS DEL CLIENTE
 # ==========================================
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
@@ -186,10 +214,6 @@ def check_user_access(message, cost=1):
         return False
         
     alias, creditos, rango, ultimo_uso, es_staff, grupo_origen = datos_usuario
-    
-    # Memoriza de dónde viene interactuando el cliente para saber a dónde responderle el Bizum luego
-    if chat_id != user_id and chat_id != recuperar_grupo_staff_db():
-        vincular_grupo_usuario(user_id, chat_id)
 
     if rango == "Baneado": return False
 
@@ -221,49 +245,53 @@ def luhn_check(card_number):
         total += n
     return total % 10 == 0
 
-# 👑 CORREGIDO: Uso de accept_chat_invite extrayendo el hash limpio del enlace de invitación de Telegram
-@bot.message_handler(commands=['joingroup'])
-def join_external_group_owner(message):
+# 👑 REQUERIMIENTO 2: /vincular_grupo (La solución definitiva. Vincula de forma 100% silenciosa y el bot se sale solo)
+@bot.message_handler(commands=['vincular_grupo', 'joingroup'])
+def manual_bind_group_silently(message):
     user_id = message.from_user.id
     args = message.text.split()
+    
+    # Solo tú como Dueño puedes activar y asociar grupos de clientes
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
+    
     if len(args) < 2:
-        bot.reply_to(message, "✏️ Uso: <code>/joingroup https://t.me</code>", parse_mode="HTML")
+        bot.reply_to(message, "✏️ Uso: <code>/vincular_grupo ID_DEL_CLIENTE</code>", parse_mode="HTML")
         return
-    
-    raw_link = args[-1]
-    bot.reply_to(message, "📥 Procesando token de invitación e ingresando al canal objetivo de forma automatizada...")
-    
-    try:
-        # Extrae el hash que viene después del signo más (+) del enlace
-        invite_hash = raw_link.split('/+')[-1] if '/+' in raw_link else raw_link.split('/')[-1]
         
-        # Método oficial síncrono que acepta la invitación de la API de Telegram
-        bot.accept_chat_invite(invite_hash)
-        bot.reply_to(message, "✅ <b>Ingreso Exitoso.</b> El bot se ha vinculado al grupo del cliente y la memoria de enrutamiento está activa.", parse_mode="HTML")
+    try:
+        target_client_id = int(args[-1])
+        datos_cliente = verificar_registro(target_client_id)
+        
+        if not datos_cliente:
+            bot.reply_to(message, "❌ Esta ID de cliente no se encuentra registrada en Supabase.")
+            return
+            
+        chat_actual_grupo = message.chat.id
+        
+        # 👑 REQUERIMIENTO 3: Guarda la asociación de forma segura sin tocar a los demás
+        vincular_grupo_usuario(target_client_id, chat_actual_grupo)
+        
+        # 👑 REQUERIMIENTO 2 (IMPORTANTE): Salida 100% silenciosa. El bot abandona el grupo sin poner un solo mensaje
+        try:
+            bot.leave_chat(chat_actual_grupo)
+        except: pass
+            
+        # Te avisa a ti en privado de que el mapeo ha sido un éxito rotundo
+        bot.send_message(5203992513, f"✅ <b>ASOCIACIÓN COMPLETADA</b>\n─────────────────────\n👤 Cliente ID: <code>{target_client_id}</code>\n⛓️ Grupo Enrutado: <code>{chat_actual_grupo}</code>\n🔒 Estado: <b>Vínculo síncrono activo en Supabase.</b>", parse_mode="HTML")
     except Exception as e:
-        bot.reply_to(message, f"❌ Error de protocolo al validar el enlace de Telegram: {e}")
-
-@bot.message_handler(content_types=['new_chat_members'])
-def automatic_kick_unauthorized_groups(message):
-    for member in message.new_chat_members:
-        if member.id == bot.get_me().id:
-            grupo_staff = recuperar_grupo_staff_db()
-            if message.chat.id != grupo_staff:
-                try:
-                    bot.send_message(message.chat.id, "❌ <b>Acceso Restringido.</b> Este bot requiere activación e ingreso mediante comando de Staff Supremo.")
-                    bot.leave_chat(message.chat.id)
-                except: pass
+        bot.send_message(5203992513, f"❌ Error al procesar el mapeo del grupo: {e}")
 
 @bot.message_handler(commands=['setgrupo'])
 def auto_save_group_channel(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     guardar_grupo_staff_db(message.chat.id)
-    bot.reply_to(message, f"🎯 <b>¡GRUPO DE STAFF CONFIGURADO!</b>\nLas notificaciones del administrador caerán aquí.", parse_mode="HTML")
+    bot.reply_to(message, f"🎯 <b>¡GRUPO DE STAFF CONFIGURADO!</b>\nLas notificaciones internas caerán aquí.", parse_mode="HTML")
+# ==========================================
+# # PARTE 3: ACCIONES SUPREMAS DE CONTROL, INYECTOR DE CRÉDITOS Y RESOLUCIÓN SEPARADA (STAFF VS CLIENTE)
+# ==========================================
 
-
-# PARTE 3: ACCIONES SUPREMAS DE CONTROL, INYECTOR DE CRÉDITOS Y CONTROL DE RESOLUCIÓN BIZUM INTER-GRUPO
+# 👑 REQUERIMIENTO 4 y 5: Las respuestas normales van al grupo del cliente, las alertas de auditoría se quedan en el Staff
 @bot.message_handler(commands=['aprobar_bizum'])
 def approve_bizum_ticket(message):
     user_id = message.from_user.id
@@ -271,8 +299,8 @@ def approve_bizum_ticket(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     if len(args) < 3: return
     try:
-        target_uid = int(args)
-        cantidad = int(args)
+        target_uid = int(args[1])
+        cantidad = int(args[2])
         datos_cliente = verificar_registro(target_uid)
         
         if datos_cliente:
@@ -280,12 +308,16 @@ def approve_bizum_ticket(message):
             nuevos_creditos = creditos_viejos + cantidad
             update_user_credits(target_uid, nuevos_creditos)
             
-            # 👑 ENRUTAMIENTO DINÁMICO: Envía el cartel final al grupo desde donde el cliente pidió la orden, o al de staff de respaldo
-            grupo_destino = grupo_origen if grupo_origen != 0 else (recuperar_grupo_staff_db() or message.chat.id)
+            # 👑 REQUERIMIENTO 4: Si el cliente tiene un grupo asociado, le manda la respuesta allí. Si no, a su privado
+            grupo_destino = grupo_origen if grupo_origen != 0 else target_uid
             
-            bot.send_message(grupo_destino, f"✅ <b>¡BIZUM ACEPTADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>Fondos Verificados</b>\n🪙 Recarga: +<code>{cantidad}</code> créditos.", parse_mode="HTML")
-            bot.send_message(target_uid, f"🎉 <b>¡BIZUM VERIFICADO CON ÉXITO!</b>\n📥 Acreditados: +<code>{cantidad}</code> monedas.\n🪙 Total actual: <code>{nuevos_creditos}</code> créditos.", parse_mode="HTML")
-    except: pass
+            # Envía la respuesta comercial limpia al grupo del cliente o su chat privado
+            bot.send_message(grupo_destino, f"✅ <b>¡BIZUM ACEPTADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>Fondos Verificados</b>\n🪙 Recarga: +<code>{cantidad}</code> créditos sumados.", parse_mode="HTML")
+            
+            # 👑 REQUERIMIENTO 5: El Staff recibe el log en su propio canal de monitorización, manteniéndolo separado
+            grupo_staff = recuperar_grupo_staff_db() or 5203992513
+            bot.send_message(grupo_staff, f"📢 <b>LOG STAFF:</b> Bizum aprobado para <code>{alias}</code> (+{cantidad}cr). Enrutado a chat: <code>{grupo_destino}</code>", parse_mode="HTML")
+    except Exception as e: print(f"Error en aprobación: {e}")
 
 @bot.message_handler(commands=['rechazar_bizum'])
 def reject_bizum_ticket(message):
@@ -294,22 +326,26 @@ def reject_bizum_ticket(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     if len(args) < 2: return
     try:
-        target_uid = int(args)
+        target_uid = int(args[1])
         datos_cliente = verificar_registro(target_uid)
         
         if datos_cliente:
             alias, creditos_viejos, rango, ultimo_uso, es_staff, grupo_origen = datos_cliente
-            grupo_destino = grupo_origen if grupo_origen != 0 else (recuperar_grupo_staff_db() or message.chat.id)
+            grupo_destino = grupo_origen if grupo_origen != 0 else target_uid
             
+            # Envía el veredicto comercial al canal del cliente
             bot.send_message(grupo_destino, f"❌ <b>¡BIZUM RECHAZADO!</b>\n─────────────────────\n👤 Cliente: <code>{alias}</code>\n📥 Estado: <b>No Recibido / Falso</b>\n⚠️ Resolución: <i>Ticket cerrado sin abonar saldo.</i>", parse_mode="HTML")
-            bot.send_message(target_uid, f"❌ <b>¡ALERTA DE RECARGA FALLIDA!</b>\n⚠️ El Staff ha revisado la cuenta bancaria y no ha encontrado ningún ingreso con tu código.", parse_mode="HTML")
-    except: pass
+            
+            # Log de control interno exclusivo para el grupo de Staff
+            grupo_staff = recuperar_grupo_staff_db() or 5203992513
+            bot.send_message(grupo_staff, f"📢 <b>LOG STAFF:</b> Bizum cancelado para <code>{alias}</code>. Enrutado a chat: <code>{grupo_destino}</code>", parse_mode="HTML")
+    except Exception as e: print(f"Error en rechazo: {e}")
 
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
     user_id = message.from_user.id
     datos = verificar_registro(user_id)
-    is_staff_user = datos if datos else 0
+    is_staff_user = datos[4] if datos else 0
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513 and is_staff_user != 1: return
     try:
         conn = get_db_connection()
@@ -318,7 +354,7 @@ def show_admin_panel(message):
         total_usuarios = cursor.fetchone()
         cursor.close()
         conn.close()
-        bot.reply_to(message, f"💻 Usuarios totales registrados en Supabase: {total_usuarios}")
+        bot.reply_to(message, f"💻 Usuarios totales registrados en Supabase: {total_usuarios[0]}")
     except: pass
 
 @bot.message_handler(commands=['add'])
@@ -331,9 +367,11 @@ def add_credits_admin(message):
         cantidad = int(args[-1])
         target_id = message.reply_to_message.from_user.id if message.reply_to_message else user_id
         datos_cliente = verificar_registro(target_id)
-        if datos_cliente: update_user_credits(target_id, datos_cliente + cantidad)
+        if datos_cliente: update_user_credits(target_id, datos_cliente[1] + cantidad)
     except: pass
-# PARTE 4: MANEJADORES PÚBLICOS DE ENTRADA DE USUARIOS, CHECKERS Y ITERADOR DEL BUCLE INFINITO
+# ==========================================
+# # PARTE 4: MANEJADORES PÚBLICOS DE CLIENTES, VERIFICADORES FINANCIEROS Y INFINITY POLLING RE-EJECUTABLE
+# ==========================================
 @bot.message_handler(commands=['register'])
 def register_user(message):
     user_id = message.from_user.id
@@ -351,12 +389,12 @@ def register_user(message):
 def show_credits(message):
     datos = verificar_registro(message.from_user.id)
     if not datos: return
-    bot.reply_to(message, f"👤 Alias: <code>{datos}</code> | 🪙 Monedas: <code>{datos}</code>", parse_mode="HTML")
+    bot.reply_to(message, f"👤 Alias: <code>{datos[0]}</code> | 🪙 Monedas: <code>{datos[1]}</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     datos = verificar_registro(message.from_user.id)
-    if datos: bot.reply_to(message, f"👋 Hola, {datos}! Escribe /comandos para ver el menú.")
+    if datos: bot.reply_to(message, f"👋 Hola, {datos[0]}! Escribe /comandos para ver el menú.")
     else: bot.reply_to(message, "👋 Bienvenido! Regístrate con /register tu_nombre")
 
 @bot.message_handler(commands=['comandos', 'help'])
@@ -369,7 +407,7 @@ def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): return
     bot.reply_to(message, f"💳 <b>PASARELA MULTIPAGO</b>\n• Bizum al: <code>600123456</code>\n• Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
-# 🚨 ALERTA PRIVADA FORZADA: Viaja directo a tu cuenta de Staff secreta, sin spam visual en grupos
+# 👑 REQUERIMIENTO 5: La alerta viaja pura y encriptada al canal privado de Staff, manteniendo los canales separados
 @bot.message_handler(commands=['claim_bizum'])
 def claim_bizum_ticket(message):
     user_id = message.from_user.id
@@ -380,13 +418,13 @@ def claim_bizum_ticket(message):
     
     bot.reply_to(message, "⏳ Ticket enviado al Staff... Esperando verificación bancaria.")
     
-    # Busca el ID configurado por ti con /setgrupo para mandarte el comando listo
+    # 🔒 El log administrativo viaja de forma fija al búnker del Staff configurado con /setgrupo
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     
     texto_alerta_admin = (
         f"🚨 <b>BIZUM RECIBIDO</b>\n"
         f"─────────────────────\n"
-        f"👤 Cliente: {datos_usuario} (ID: <code>{user_id}</code>)\n"
+        f"👤 Cliente: {datos_usuario[0]} (ID: <code>{user_id}</code>)\n"
         f"🔢 Ticket: <code>{codigo_operacion}</code>\n"
         f"─────────────────────\n"
         f"💡 <b>Copiar comandos para aprobar:</b>\n"
