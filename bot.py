@@ -188,13 +188,107 @@ def set_user_vip_admin(message):
     
     bot.reply_to(message, f"💎 <b>RANGO ACTUALIZADO</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n🔰 Nuevo Rango: <b>🌟 VIP Premium</b>\n⚡ Beneficio: <i>¡Consultas infinitas gratis activadas!</i>", parse_mode="HTML")
 
-# 👑 NUEVO COMANDO: /setgratis (Para quitar el VIP si es necesario en Reply)
+# 📊 NUEVO COMANDO: /panel (Muestra estadísticas de tu base de datos en tiempo real)
+@bot.message_handler(commands=['panel', 'admin'])
+def show_admin_panel(message):
+    user_id = message.from_user.id
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ No tienes permisos de dueño para ver este panel.")
+        return
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Consulta 1: Contar usuarios registrados totales
+        cursor.execute('SELECT COUNT(*) FROM usuarios')
+        total_usuarios = cursor.fetchone()[0]
+        
+        # Consulta 2: Contar total de monedas emitidas en el sistema
+        cursor.execute('SELECT SUM(creditos) FROM usuarios')
+        total_creditos = cursor.fetchone()[0] or 0
+        
+        cursor.close()
+        conn.close()
+        
+        texto_panel = (
+            f"💻 <b>PANEL DE CONTROL CENTRAL</b>\n"
+            f"─────────────────────\n"
+            f"👥 <b>Usuarios en Base de Datos:</b> <code>{total_usuarios}</code>\n"
+            f"🪙 <b>Monedas Totales Emitidas:</b> <code>{total_creditos}</code> 🪙\n"
+            f"─────────────────────\n"
+            f"📢 <i>Usa <code>/broadcast texto</code> para alertar a todos.</i>"
+        )
+        bot.reply_to(message, texto_panel, parse_mode="HTML")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error al auditar la base de datos: {e}")
+
+# 📢 NUEVO COMANDO: /broadcast (Envía un mensaje masivo a todos los usuarios de Supabase)
+@bot.message_handler(commands=['broadcast', 'alert'])
+def broadcast_message_admin(message):
+    user_id = message.from_user.id
+    args = message.text.split(maxsplit=1)
+    
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ No tienes permisos para enviar alertas masivas.")
+        return
+
+    if len(args) < 2:
+        bot.reply_to(message, "✏️ <b>Uso correcto:</b> <code>/broadcast Tu mensaje aquí</code>", parse_mode="HTML")
+        return
+
+    mensaje_masivo = args[1]
+    bot.reply_to(message, "⏳ Iniciando envío masivo por la red de Supabase...")
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Extrae las IDs de todos los usuarios registrados
+        cursor.execute('SELECT id FROM usuarios')
+        lista_usuarios = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        exitos = 0
+        fallidos = 0
+
+        for usuario in lista_usuarios:
+            uid = usuario[0]
+            try:
+                bot.send_message(uid, f"📢 <b>ALERTA DEL ADMINISTRADOR</b>\n─────────────────────\n{mensaje_masivo}", parse_mode="HTML")
+                exitos += 1
+                time.sleep(0.1) # Pequeño delay de ciberseguridad para evitar baneo de la API de Telegram
+            except:
+                fallidos += 1
+
+        bot.reply_to(message, f"📢 <b>Envío Masivo Completado</b>\n─────────────────────\n🟢 Entregados: <code>{exitos}</code>\n🔴 Bloqueados/Fallidos: <code>{fallidos}</code>", parse_mode="HTML")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error en el hilo de envío: {e}")
+
+@bot.message_handler(commands=['setvip'])
+def set_user_vip_admin(message):
+    user_id = message.from_user.id
+    args = message.text.split()
+    if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
+        bot.reply_to(message, "❌ No tienes permisos de dueño para otorgar rangos.")
+        return
+    if not message.reply_to_message:
+        bot.reply_to(message, "✏️ <b>Uso correcto:</b> Responde al mensaje del usuario y escribe: <code>/setvip</code>", parse_mode="HTML")
+        return
+    target_id = message.reply_to_message.from_user.id
+    datos_cliente = verificar_registro(target_id)
+    if not datos_cliente:
+        bot.reply_to(message, "❌ Este usuario no está registrado en el bot.")
+        return
+    alias = datos_cliente[0]
+    update_user_rank(target_id, "VIP")
+    bot.reply_to(message, f"💎 <b>RANGO ACTUALIZADO</b>\n─────────────────────\n👤 Usuario: <code>{alias}</code>\n🔰 Nuevo Rango: <b>🌟 VIP Premium</b>\n⚡ Beneficio: <i>¡Consultas infinitas gratis activadas!</i>", parse_mode="HTML")
+
 @bot.message_handler(commands=['setgratis'])
 def remove_user_vip_admin(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: return
     if not message.reply_to_message: return
-    
     target_id = message.reply_to_message.from_user.id
     datos_cliente = verificar_registro(target_id)
     if datos_cliente:
@@ -207,7 +301,6 @@ def delete_user_admin(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos de dueño para eliminar registros.")
         return
-
     if message.reply_to_message:
         target_id = message.reply_to_message.from_user.id
         datos_cliente = verificar_registro(target_id)
@@ -230,20 +323,16 @@ def add_credits_admin(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
         bot.reply_to(message, "❌ No tienes permisos para usar este comando.")
         return
-        
     if len(args) < 2:
         bot.reply_to(message, "✏️ Uso: <code>/add cantidad</code> o respondiendo a un mensaje.", parse_mode="HTML")
         return
-        
     try:
         cantidad = int(args[-1])
         target_id = message.reply_to_message.from_user.id if message.reply_to_message else user_id
-        
         datos_cliente = verificar_registro(target_id)
         if not datos_cliente:
             bot.reply_to(message, "❌ El usuario objetivo no está registrado.")
             return
-            
         alias = datos_cliente[0]
         creditos_viejos = datos_cliente[1]
         nuevos_creditos = creditos_viejos + cantidad
@@ -302,7 +391,7 @@ def generate_cards(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "❌ Uso correcto: /gen xxxxxx")
+            bot.reply_to(message, "❌ Uso correcto: /gen 400022")
             return
         bin_number = "".join(bin_match)[:6]
         if len(bin_number) < 6:
@@ -322,7 +411,7 @@ def generate_cards(message):
                     generated_list.append(f"{test_cc}|{mes}|{ano}|{cvv}")
                     break
         cards_output = "\n".join(generated_list)
-        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)[0]} creditos."
+        response = f"🎲 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {get_user_credits(message.from_user.id)[1] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)} creditos."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error al generar: {str(e)}")
@@ -334,7 +423,7 @@ def check_bin_standalone(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "❌ Uso correcto: /bin xxxxxx")
+            bot.reply_to(message, "❌ Uso correcto: /bin 400022")
             return
         bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
@@ -348,7 +437,7 @@ def check_bin_standalone(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0]}."
+        response = f"🔍 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[1] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)}."
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
@@ -360,11 +449,11 @@ def check_card(message):
         input_data = message.text
         cards = re.findall(r'\d+', input_data)
         if len(cards) < 4:
-            bot.reply_to(message, "❌ Uso correcto: /chk numero|MM|AA|CVV")
+            bot.reply_to(message, "❌ Uso correcto: /chk CARD")
             return
         cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         is_luhn_valid = luhn_check(cc)
-        status = "✅ Valida" if is_luhn_valid else "❌ Invalida"
+        status = "🟢 Valida" if is_luhn_valid else "🔴 Invalida"
         bin_number = cc[:6]
         if bin_number in LOCAL_BINS:
             bin_data = LOCAL_BINS[bin_number]
@@ -376,7 +465,7 @@ def check_card(message):
         else:
             brand = "Visa" if bin_number.startswith('4') else "Mastercard" if bin_number.startswith('5') else "Desconocida"
             card_type, bank_name, country_name, flag = "Desconocido", "BANCO GENERICO", "Desconocido", "🏳️‍🌈"
-        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[0]}"
+        response = f"💳 Card: {cc}|{mes}|{ano}|{cvv}\nEstado: {status}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {get_user_credits(message.from_user.id)[1] if isinstance(get_user_credits(message.from_user.id), tuple) else get_user_credits(message.from_user.id)}"
         bot.reply_to(message, response)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Error: {str(e)}")
