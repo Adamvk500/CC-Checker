@@ -322,6 +322,7 @@ def add_credits_admin(message):
             update_user_credits(target_id, datos_cliente + cantidad)
             bot.reply_to(message, f"🪙 Monedas inyectadas.")
     except: pass
+
 # 👑 COMANDO DE APROBACIÓN DE BIZUM
 @bot.message_handler(commands=['aprobar_bizum'])
 def approve_bizum_ticket(message):
