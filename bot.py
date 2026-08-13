@@ -83,10 +83,10 @@ def verificar_registro(user_id):
     conn.close()
     return result
 
-# NUEVA: Función de ciberseguridad para registrar eventos en la nube
 def registrar_log_evento(user_id, comando_texto):
     try:
         datos = verificar_registro(user_id)
+        # CORREGIDO: Extraer el índice 0 para que guarde solo el texto del alias, no la tupla completa
         alias_usuario = datos[0] if datos else "No_Registrado"
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
@@ -97,8 +97,9 @@ def registrar_log_evento(user_id, comando_texto):
         conn.commit()
         cursor.close()
         conn.close()
-    except:
-        pass
+    except Exception as e:
+        print(f"Error al escribir log en Supabase: {e}")
+
 
 def comprobar_alias_existe(alias):
     conn = get_db_connection()
