@@ -448,7 +448,7 @@ def contact_support_team(message):
         return
     mensaje_soporte = args[-1]
     alias = datos_usuario[0]
-        bot.reply_to(message, "📢 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
+    bot.reply_to(message, "📢 <b>¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
     
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_soporte_staff = f"📩 <b>¡NUEVO TICKET DE SOPORTE!</b>\n────────────────\n👤 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n💬 {mensaje_soporte}"
