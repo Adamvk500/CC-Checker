@@ -385,19 +385,22 @@ def delete_user_admin(message):
             eliminar_usuario_db(target_id)
 
 # ==========================================
-# PARTE 4: NUEVA LÓGICA REAL (CORREGIDA Y ROBUSTA)
+# PARTE 4: REAL CARD GATEWAY (FIXED & ROBUST)
 # ==========================================
 
 class RealCardGateway:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({'User-Agent': ua.random})
-        
+
     def fetch_bin_info(self, bin_number):
-        """Obtiene datos reales del banco usando binlist.net"""
+        """Obtiene datos del banco."""
         try:
             if bin_number in LOCAL_BINS:
                 return LOCAL_BINS[bin_number]
+            
+            # Si el BIN es más largo de 6, cortamos a 6
+            bin_number = bin_number[:6]
             
             resp = requests.get(f"https://api.binlist.net/{bin_number}", timeout=5)
             if resp.status_code == 200:
@@ -407,9 +410,8 @@ class RealCardGateway:
                 flag = country.get('emoji', '\U0001F30D')
                 bank_name = bank.get('name', 'Desconocido')
                 
-                # Determinar marca automáticamente si no está en LOCAL
                 brand = "Visa" if bin_number.startswith('4') else "Mastercard"
-                if 'mastercard' in bin_number[:6] or bin_number.startswith('5'): brand = "Mastercard"
+                if bin_number.startswith('5') or bin_number.startswith('2'): brand = "Mastercard"
                 
                 LOCAL_BINS[bin_number] = {
                     "brand": brand,
@@ -427,55 +429,64 @@ class RealCardGateway:
 
     def check_card_live(self, cc, mes, ano, cvv):
         """
-        Ejecuta una AUTORIZACIÓN REAL de $0.00.
-        CORRECCIÓN: Limpia y valida la entrada antes de enviar.
+        Check real con Stripe.
+        FIX: Formatea la fecha correctamente y maneja tarjetas de 16-19 digits.
         """
         try:
-            # 1. Limpieza de entrada
-            mes = int(str(mes).zfill(2)) # Asegura MM (ej: 5 -> 05)
-            ano = int(str(ano).zfill(2))[-2:] # Asegura YY (ej: 2026 -> 26)
+            # 1. Limpieza de la tarjeta (quitar espacios, guiones)
+            cc = "".join(cc.split())
+            cc = cc.strip()
             
-            # Validación básica de fecha
-            if mes < 1 or mes > 12:
-                return {"status": "DEAD", "msg": "Fecha Inválida (Mes)", "code": "invalid_expiry", "bank": "Unknown", "country": "Unknown", "brand": "Unknown"}
+            # 2. Validación de longitud (Stripe prefiere 16, pero a veces 19)
+            # Si es muy larga (>19), la cortamos a los primeros 16 si es posible, o la enviamos tal cual
+            if len(cc) > 19:
+                cc = cc[:16] 
 
-            # 2. Crear PaymentIntent
+            # 3. Formateo de fecha para Stripe
+            # Asegurar que mes sea 2 digitos y año 2 digitos
+            try:
+                mes_int = int(str(mes).strip())
+                if len(str(mes)) > 2: mes_int = mes_int % 100 # Si viene 2030, lo convertimos a 30
+            except:
+                mes_int = 12
+                
+            try:
+                ano_int = int(str(ano).strip())
+                if len(str(ano)) == 4:
+                    ano_int = int(str(ano_int)[-2:]) # 2027 -> 27
+                elif len(str(ano)) > 4:
+                    ano_int = ano_int % 100
+            except:
+                ano_int = 28
+
+            # 4. Intentar crear el Payment Intent
+            # Usamos capture_method='manual' para que no cobre de verdad si es posible
             intent = stripe.PaymentIntent.create(
-                amount=0,
+                amount=0, # Monto $0
                 currency="usd",
                 payment_method_data={
                     "card": {
                         "number": cc,
-                        "exp_month": mes,
-                        "exp_year": ano,
-                        "cvc": cvv,
+                        "exp_month": mes_int,
+                        "exp_year": ano_int,
+                        "cvc": str(cvv).strip(),
                     },
                     "billing_details": {
-                        "name": "Test"
+                        "name": "Test User"
                     }
                 },
                 description="CC Validation",
-                # Evitamos que intente cobrar realmente si el formato es raro
                 capture_method="manual" 
             )
             
-            # Si llega aquí, la tarjeta fue aceptada por la estructura
-            if intent.status in ["succeeded", "requires_payment_method", "requires_action"]: 
-                return {
-                    "status": "LIVE",
-                    "msg": "Valid / Live",
-                    "bank": "Live Bank",
-                    "country": "Unknown",
-                    "brand": "Unknown"
-                }
-            else:
-                return {
-                    "status": "LIVE",
-                    "msg": "Processed",
-                    "bank": "Live Bank",
-                    "country": "Unknown",
-                    "brand": "Unknown"
-                }
+            # Si no hay error, la tarjeta es válida estructuralmente
+            return {
+                "status": "LIVE",
+                "msg": "Valid Structure",
+                "bank": "Live Bank",
+                "country": "Unknown",
+                "brand": "Unknown"
+            }
 
         except stripe.error.CardError as e:
             body = e.json_body
@@ -483,7 +494,7 @@ class RealCardGateway:
             decline_code = err.get('code', 'unknown')
             decline_msg = err.get('message', 'Declined')
             
-            # Mapeo de errores comunes
+            # Mapeo
             status_map = {
                 "insufficient_funds": "Sin Fondos",
                 "lost_card": "Tarjeta Perdida",
@@ -509,11 +520,10 @@ class RealCardGateway:
             # Aquí es donde fallaba tu código anterior (formato fecha)
             return {
                 "status": "DEAD",
-                "msg": f"Formato Inválido: {str(e)}",
+                "msg": f"Error Formato: {str(e)}",
                 "code": "invalid_request",
                 "bank": "Unknown",
-                "country": "Unknown",
-                "brand": "Unknown"
+                "country": "Unknown"
             }
         except Exception as e:
             return {
@@ -521,14 +531,13 @@ class RealCardGateway:
                 "msg": f"Error API: {str(e)}",
                 "code": "api_error",
                 "bank": "Unknown",
-                "country": "Unknown",
-                "brand": "Unknown"
+                "country": "Unknown"
             }
 
 CARD_GATEWAY = RealCardGateway()
 
 # ======================
-# HANDLERS REESCRITOS
+# HANDLERS (CORREGIDOS PARA PARSEAR DATOS BIEN)
 # ======================
 
 @bot.message_handler(regexp=r'(?i)^[!/]gen')
@@ -599,26 +608,27 @@ def check_card(message):
         loading_msg = bot.reply_to(message, "\U0001F50D <b>Conectando con Gateway Real (Stripe)...</b>", parse_mode="HTML")
         
         input_data = message.text
-        # Extraer NÚMEROS. Si el usuario puso CARD|MM|YY|CVV, esto separa todo en dígitos.
-        cards = re.findall(r'\d+', input_data)
         
-        # Necesitamos al menos 4 grupos de números (Card, MM, YY, CVV)
-        if len(cards) < 4: 
-            bot.edit_message_text("\U0001F4ED Uso incorrecto. Formato: /chk CARD|MM|AA|CVV", message.chat.id, loading_msg.message_id)
+        # SOLUCIÓN DEFINITIVA AL PARSEO:
+        # 1. Limpiar el input de símbolos extraños
+        input_data = input_data.replace('|', ' ').replace(' ', ' ').strip()
+        
+        # 2. Buscar el patrón: NNNNNNNNNNNNNNNNNN MM YY CVV
+        # Usamos regex para encontrar grupos de dígitos
+        parts = re.findall(r'\d+', input_data)
+        
+        if len(parts) < 4: 
+            bot.edit_message_text("\U0001F4ED Uso incorrecto. Formato: /chk 4000000000000000 12 25 123", message.chat.id, loading_msg.message_id)
             return
 
-        cc = cards[0]
-        mes = cards[1]
-        ano = cards[2]
-        cvv = cards[3]
+        cc = parts[0]
+        mes = parts[1]
+        ano = parts[2]
+        cvv = parts[3]
 
-        # Validar que la tarjeta tenga longitud estándar (16 dígitos) para Stripe
-        if len(cc) != 16:
-            bot.edit_message_text(f"\U0001F911 <b>Tarjeta de {len(cc)} dígitos (Stripe prefiere 16)</b>\nIntentando check...", message.chat.id, loading_msg.message_id, parse_mode="HTML")
-
-        is_luhn_valid = luhn_check(cc)
-        if not is_luhn_valid:
-            bot.edit_message_text("\U0001F911 <b>DEAD</b> (Luhn Fail - Número Inexistente)", message.chat.id, loading_msg.message_id, parse_mode="HTML")
+        # Validar Luhn antes de gastar API
+        if not luhn_check(cc):
+            bot.edit_message_text("\U0001F911 <b>DEAD</b> (Luhn Fail)", message.chat.id, loading_msg.message_id, parse_mode="HTML")
             return
 
         bin_number = cc[:6]
