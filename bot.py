@@ -14,7 +14,6 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import pg8000
 import requests 
-import random
 from fake_useragent import UserAgent 
 import stripe 
 
@@ -32,9 +31,9 @@ bot = telebot.TeleBot(TOKEN)
 # SimulaciГіn de rotaciГіn de User-Agent y Proxies
 ua = UserAgent()
 PROXY_LIST = [
- "http://proxy1:port",
- "http://proxy2:port",
- "http://proxy3:port"
+    "http://proxy1:port",
+    "http://proxy2:port",
+    "http://proxy3:port"
 ]
 
 def run_fake_server():
@@ -44,13 +43,13 @@ def run_fake_server():
 Thread(target=run_fake_server, daemon=True).start()
 
 LOCAL_BINS = {
- "522205": {"brand": "Mastercard", "type": "Debit", "bank": "IMAGIN", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
- "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
- "454812": {"brand": "Visa", "type": "Debit", "bank": "BBVA", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
- "540624": {"brand": "Mastercard", "type": "Credit", "bank": "CAIXABANK", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
- "400022": {"brand": "Visa", "type": "Credit", "bank": "CHASE BANK", "country": "United States", "flag": "рџ‡єрџ‡ё"},
- "510510": {"brand": "Mastercard", "type": "Credit", "bank": "CAPITAL ONE", "country": "United States", "flag": "рџ‡єрџ‡ё"},
- "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "рџ‡Ёрџ‡ґ"}
+    "522205": {"brand": "Mastercard", "type": "Debit", "bank": "IMAGIN", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
+    "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
+    "454812": {"brand": "Visa", "type": "Debit", "bank": "BBVA", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
+    "540624": {"brand": "Mastercard", "type": "Credit", "bank": "CAIXABANK", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
+    "400022": {"brand": "Visa", "type": "Credit", "bank": "CHASE BANK", "country": "United States", "flag": "рџ‡єрџ‡ё"},
+    "510510": {"brand": "Mastercard", "type": "Credit", "bank": "CAPITAL ONE", "country": "United States", "flag": "рџ‡єрџ‡ё"},
+    "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "рџ‡Ёрџ‡ґ"}
 }
 
 def get_db_connection():
@@ -68,18 +67,17 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-     CREATE TABLE IF NOT EXISTS usuarios (
-     id BIGINT PRIMARY KEY,
-     alias_elegido TEXT UNIQUE,
-     telegram_username TEXT,
-     creditos INTEGER DEFAULT 0,
-     rango TEXT DEFAULT 'Gratis',
-     ultimo_uso DOUBLE PRECISION DEFAULT 0,
-     es_staff INTEGER DEFAULT 0
-     )
-     ''')
+        CREATE TABLE IF NOT EXISTS usuarios (
+        id BIGINT PRIMARY KEY,
+        alias_elegido TEXT UNIQUE,
+        telegram_username TEXT,
+        creditos INTEGER DEFAULT 0,
+        rango TEXT DEFAULT 'Gratis',
+        ultimo_uso DOUBLE PRECISION DEFAULT 0,
+        es_staff INTEGER DEFAULT 0
+        )
+    ''')
     
-    # Corrección: Bloques try/except correctamente indentados
     try: 
         cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_uso DOUBLE PRECISION DEFAULT 0')
     except Exception: 
@@ -91,21 +89,21 @@ def init_db():
         pass
     
     cursor.execute('''
-     CREATE TABLE IF NOT EXISTS config_servidor (
-     clave TEXT PRIMARY KEY,
-     valor_id BIGINT
-     )
-     ''')
+        CREATE TABLE IF NOT EXISTS config_servidor (
+        clave TEXT PRIMARY KEY,
+        valor_id BIGINT
+        )
+    ''')
     
     cursor.execute('''
-     CREATE TABLE IF NOT EXISTS logs_auditoria (
-     id SERIAL PRIMARY KEY,
-     fecha_hora TEXT,
-     user_id BIGINT,
-     alias TEXT,
-     comando TEXT
-     )
-     ''')
+        CREATE TABLE IF NOT EXISTS logs_auditoria (
+        id SERIAL PRIMARY KEY,
+        fecha_hora TEXT,
+        user_id BIGINT,
+        alias TEXT,
+        comando TEXT
+        )
+    ''')
     conn.commit()
     cursor.close()
     conn.close()
@@ -513,11 +511,9 @@ class RealCardGateway:
     def fetch_bin_info(self, bin_number):
         """Obtiene datos reales del banco usando binlist.net"""
         try:
-            # Si ya estГЎ en tu base local, usa eso para velocidad
             if bin_number in LOCAL_BINS:
                 return LOCAL_BINS[bin_number]
             
-            # Llamada a API externa
             resp = requests.get(f"https://api.binlist.net/{bin_number}", timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
@@ -526,10 +522,8 @@ class RealCardGateway:
                 flag = country.get('emoji', 'рџЊЌ')
                 bank_name = bank.get('name', 'Desconocido')
                 
-                # Determinar marca basada en el primer dГ­gito si la API falla
                 brand = "Visa" if bin_number.startswith('4') else "Mastercard"
                 
-                # Guardar en cachГ© local temporal
                 LOCAL_BINS[bin_number] = {
                     "brand": brand,
                     "type": bank.get('type', 'Credit'),
@@ -541,22 +535,17 @@ class RealCardGateway:
         except:
             pass
         
-        # Fallback si falla la API
         brand = "Visa" if bin_number.startswith('4') else "Mastercard"
         return {"brand": brand, "type": "Credit", "bank": "Banco Externo", "country": "Global", "flag": "рџЊЌ"}
 
     def check_card_live(self, cc, mes, ano, cvv):
         """
         Ejecuta una AUTORIZACIГ“N REAL de $0.00 usando PaymentIntent.
-        Esto es mГЎs robusto que Charge.create y da mejores mensajes de error.
         """
         try:
-            # 1. Formatear fecha
             exp_month = int(mes)
             exp_year = int(ano)
             
-            # 2. Crear PaymentIntent con amount 0 para validar la tarjeta
-            # Stripe acepta amount=0 para validar tarjetas sin cobrar
             intent = stripe.PaymentIntent.create(
                 amount=0,
                 currency="usd",
@@ -571,15 +560,10 @@ class RealCardGateway:
                         "name": "Stripe Check"
                     }
                 },
-                # Esto ayuda a que Stripe procese la validaciГіn mГЎs rГ¡pido
                 description="CC Validation",
             )
             
-            # 3. Analizar la respuesta
-            # Si llegamos aquГ­, la tarjeta fue aceptada por Stripe (Live)
             if intent.status == "succeeded" or intent.status == "requires_payment_method": 
-                # requires_payment_method a veces aparece con amount=0 si no hay mÃ©todo asociado, 
-                # pero si no lanza error de formato, es Live.
                 return {
                     "status": "LIVE",
                     "msg": "Approved / Valid",
@@ -588,7 +572,6 @@ class RealCardGateway:
                     "brand": "Unknown"
                 }
             else:
-                # Si el estado es diferente y no es error, intentar interpretar
                 return {
                     "status": "LIVE",
                     "msg": "Processed",
@@ -603,7 +586,6 @@ class RealCardGateway:
             decline_code = err.get('code', 'unknown')
             decline_msg = err.get('message', 'Declined')
             
-            # Mapeo comÃºn de cÃ³digos para entender mejor
             status_map = {
                 "insufficient_funds": "Sin Fondos",
                 "lost_card": "Tarjeta Perdida",
@@ -626,7 +608,6 @@ class RealCardGateway:
                 "country": "Unknown"
             }
         except stripe.error.InvalidRequestError as e:
-            # Error de formato (tarjeta mala, fecha mala)
             return {
                 "status": "DEAD",
                 "msg": "Invalid Card Format or Expired",
@@ -724,13 +705,11 @@ def check_card(message):
 
         cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         
-        # ValidaciГіn Luhn
         is_luhn_valid = luhn_check(cc)
         if not is_luhn_valid:
             bot.edit_message_text("рџ’° <b>DEAD</b> (Luhn Fail - NÃºmero Inexistente)", message.chat.id, loading_msg.message_id, parse_mode="HTML")
             return
 
-        # Obtener datos del BIN en vivo
         bin_number = cc[:6]
         bin_data = CARD_GATEWAY.fetch_bin_info(bin_number)
         brand = bin_data.get("brand", "Unknown")
@@ -738,7 +717,6 @@ def check_card(message):
         country_name = bin_data.get("country", "Unknown")
         flag = bin_data.get("flag", "рџЊЌ")
 
-        # Ejecutar Check Real
         result = CARD_GATEWAY.check_card_live(cc, mes, ano, cvv)
         
         status_emoji = "вњ…" if result['status'] == "LIVE" else "рџ’°"
@@ -780,5 +758,3 @@ while True:
             time.sleep(5)
     except Exception as e: 
         time.sleep(5)
-
-https://notrack.ai/
