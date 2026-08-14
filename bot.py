@@ -1,5 +1,5 @@
 # ==========================================
-# # PARTE 1: INFRAESTRUCTURA DE RED, CONFIGURACIГ“N CORE Y CONEXIONES SEGURAS SUPABASE PERMANENTES
+# PARTE 1: INFRAESTRUCTURA DE RED, CONFIGURACIГ“N CORE Y CONEXIONES SEGURAS SUPABASE PERMANENTES
 # ==========================================
 import os
 import re
@@ -43,13 +43,13 @@ def run_fake_server():
 Thread(target=run_fake_server, daemon=True).start()
 
 LOCAL_BINS = {
-    "522205": {"brand": "Mastercard", "type": "Debit", "bank": "IMAGIN", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
-    "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
-    "454812": {"brand": "Visa", "type": "Debit", "bank": "BBVA", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
-    "540624": {"brand": "Mastercard", "type": "Credit", "bank": "CAIXABANK", "country": "Spain", "flag": "рџ‡Єрџ‡ё"},
-    "400022": {"brand": "Visa", "type": "Credit", "bank": "CHASE BANK", "country": "United States", "flag": "рџ‡єрџ‡ё"},
-    "510510": {"brand": "Mastercard", "type": "Credit", "bank": "CAPITAL ONE", "country": "United States", "flag": "рџ‡єрџ‡ё"},
-    "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "рџ‡Ёрџ‡ґ"}
+    "522205": {"brand": "Mastercard", "type": "Debit", "bank": "IMAGIN", "country": "Spain", "flag": "\U0001F1EA\U0001F1F9"},
+    "491566": {"brand": "Visa", "type": "Credit", "bank": "BANCO SANTANDER", "country": "Spain", "flag": "\U0001F1EA\U0001F1F9"},
+    "454812": {"brand": "Visa", "type": "Debit", "bank": "BBVA", "country": "Spain", "flag": "\U0001F1EA\U0001F1F9"},
+    "540624": {"brand": "Mastercard", "type": "Credit", "bank": "CAIXABANK", "country": "Spain", "flag": "\U0001F1EA\U0001F1F9"},
+    "400022": {"brand": "Visa", "type": "Credit", "bank": "CHASE BANK", "country": "United States", "flag": "\U0001F1FA\U0001F1F8"},
+    "510510": {"brand": "Mastercard", "type": "Credit", "bank": "CAPITAL ONE", "country": "United States", "flag": "\U0001F1FA\U0001F1F8"},
+    "418731": {"brand": "Visa", "type": "Debit", "bank": "BANCOLOMBIA", "country": "Colombia", "flag": "\U0001F1E8\U0001F1F4"}
 }
 
 def get_db_connection():
@@ -214,7 +214,7 @@ def update_user_credits(user_id, nuevos_creditos):
     conn.close()
 
 # ==========================================
-# # PARTE 2: GATEWAY DE SEGURIDAD (ANTIFLOOD), VALIDACIONES TГ‰CNICAS Y GESTIГ“N DEL GRUPO CENTRAL STAFF
+# PARTE 2: GATEWAY DE SEGURIDAD (ANTIFLOOD), VALIDACIONES TГ‰CNICAS Y GESTIГ“N DEL GRUPO CENTRAL STAFF
 # ==========================================
 def check_user_access(message, cost=1):
     user_id = message.from_user.id
@@ -224,7 +224,7 @@ def check_user_access(message, cost=1):
     
     datos_usuario = verificar_registro(user_id)
     if not datos_usuario:
-        bot.reply_to(message, "рџљ« рџ—їрџЊЂ Acceso Denegado. Registrate con /register tu_nombre.")
+        bot.reply_to(message, "\U0001F6D1 \U0001F911 Acceso Denegado. Registrate con /register tu_nombre.")
         return False
     
     alias, creditos, rango, ultimo_uso, es_staff = datos_usuario
@@ -239,7 +239,7 @@ def check_user_access(message, cost=1):
         tiempo_transcurrido = current_time - globals()['LAST_COMMAND_TIME'][user_id]
         if tiempo_transcurrido < 3:
             segundos_restantes = 3 - int(tiempo_transcurrido)
-            bot.reply_to(message, f"вЏ± <b>ВЎSISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s.", parse_mode="HTML")
+            bot.reply_to(message, f"\u23F3 <b>В¡SISTEMA ANTIFLOOD!</b>\nPor favor, espera <code>{segundos_restantes}</code>s.", parse_mode="HTML")
             return False
 
     globals()['LAST_COMMAND_TIME'][user_id] = current_time
@@ -248,7 +248,7 @@ def check_user_access(message, cost=1):
         return True
     
     if creditos < cost:
-        bot.reply_to(message, f"рџ’° Creditos insuficientes. Tienes: {creditos} monedas.")
+        bot.reply_to(message, f"\U0001F911 Creditos insuficientes. Tienes: {creditos} monedas.")
         return False
     
     update_user_credits(user_id, creditos - cost)
@@ -272,7 +272,7 @@ def auto_save_group_channel(message):
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513: 
         return
     guardar_grupo_staff_db(message.chat.id)
-    bot.reply_to(message, f"рџ“› <b>ВЎGRUPO DE STAFF CONFIGURADO!</b>\nLas alertas de Bizum cazarГЎn de forma centralizada el entero puro.", parse_mode="HTML")
+    bot.reply_to(message, f"\U0001F4F9 <b>В¡GRUPO DE STAFF CONFIGURADO!</b>\nLas alertas de Bizum cazarГЎn de forma centralizada el entero puro.", parse_mode="HTML")
 
 @bot.message_handler(commands=['panel', 'admin'])
 def show_admin_panel(message):
@@ -288,7 +288,7 @@ def show_admin_panel(message):
         total_usuarios = cursor.fetchone()
         cursor.close()
         conn.close()
-        bot.reply_to(message, f"рџ’» Usuarios totales registrados en Supabase: {total_usuarios[0]}")
+        bot.reply_to(message, f"\U0001F4B0 Usuarios totales registrados en Supabase: {total_usuarios[0]}")
     except Exception: 
         pass
 
@@ -310,12 +310,12 @@ def promote_to_staff_owner(message):
         conn.close()
         if target_data:
             update_user_staff_status(target_data[0], 1)
-            bot.reply_to(message, f"рџЄЉ Staff asignado a <code>{target_alias}</code>.", parse_mode="HTML")
+            bot.reply_to(message, f"\U0001F451 Staff asignado a <code>{target_alias}</code>.", parse_mode="HTML")
     except Exception: 
         pass
 
 # ==========================================
-# # PARTE 3: CANDADOS ADMINISTRATIVOS COMPLETO (APROBAR / RECHAZAR BIZUM DIRIGIDO COMO FRANCOTIRADOR)
+# PARTE 3: CANDADOS ADMINISTRATIVOS COMPLETO (APROBAR / RECHAZAR BIZUM DIRIGIDO COMO FRANCOTIRADOR)
 # ==========================================
 @bot.message_handler(commands=['aprobar_bizum'])
 def approve_bizum_ticket(message):
@@ -336,7 +336,7 @@ def approve_bizum_ticket(message):
             nuevos_creditos = creditos_viejos + cantidad
             update_user_credits(target_uid, nuevos_creditos)
             
-            bot.send_message(chat_origen_salva, f"вњ… <b>ВЎBIZUM ACEPTADO!</b>\nв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\nрџ‘¤ Cliente: <code>{alias}</code>\nрџ“§ Estado: <b>Fondos Verificados</b>\nрџ’° Recarga: +<code>{cantidad}</code> crГ©ditos sumados a tu perfil.", parse_mode="HTML")
+            bot.send_message(chat_origen_salva, f"\u2705 <b>В¡BIZUM ACEPTADO!</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\U0001F451 Cliente: <code>{alias}</code>\n\U0001F4E7 Estado: <b>Fondos Verificados</b>\n\U0001F911 Recarga: +<code>{cantidad}</code> crГ©ditos sumados a tu perfil.", parse_mode="HTML")
     except Exception as e: 
         print(f"Error tГ©cnico en enrutador de pagos: {e}")
 
@@ -354,7 +354,7 @@ def reject_bizum_ticket(message):
         datos_cliente = verificar_registro(target_uid)
         if datos_cliente:
             alias = datos_cliente[0]
-            bot.send_message(chat_origen_salva, f"рџ’° <b>ВЎBIZUM RECHAZADO!</b>\nв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\nрџ‘¤ Cliente: <code>{alias}</code>\nрџ“§ Estado: <b>No Recibido / Falso</b>\nрџљ« рџ—їрџЊЂ ResoluciГіn: <i>Ticket cerrado. No se ha encontrado ningun ingreso en el banco.</i>", parse_mode="HTML")
+            bot.send_message(chat_origen_salva, f"\U0001F911 <b>В¡BIZUM RECHAZADO!</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\U0001F451 Cliente: <code>{alias}</code>\n\U0001F4E7 Estado: <b>No Recibido / Falso</b>\n\U0001F6D1 \U0001F911 ResoluciГіn: <i>Ticket cerrado. No se ha encontrado ningun ingreso en el banco.</i>", parse_mode="HTML")
     except Exception as e:
         print(f"Error tГ©cnico en denegador de pagos: {e}")
 
@@ -362,7 +362,7 @@ def reject_bizum_ticket(message):
 def set_user_vip_admin(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
-        bot.reply_to(message, "рџ’° Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
+        bot.reply_to(message, "\U0001F911 Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
         return
     if not message.reply_to_message: 
         return
@@ -370,13 +370,13 @@ def set_user_vip_admin(message):
     datos_cliente = verificar_registro(target_id)
     if datos_cliente:
         update_user_rank(target_id, "VIP")
-        bot.reply_to(message, f"рџ’‹ Rango de <code>{datos_cliente[0]}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
+        bot.reply_to(message, f"\U0001F48C Rango de <code>{datos_cliente[0]}</code> actualizado a <b>VIP Premium</b>.", parse_mode="HTML")
 
 @bot.message_handler(commands=['delete', 'unregister'])
 def delete_user_admin(message):
     user_id = message.from_user.id
     if message.from_user.username != "Adam_vk_500" and user_id != 5203992513:
-        bot.reply_to(message, "рџ’° Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
+        bot.reply_to(message, "\U0001F911 Acceso Denegado. Tu rango de Staff no te permite gestionar miembros.")
         return
     if message.reply_to_message:
         target_id = message.reply_to_message.from_user.id
@@ -385,7 +385,7 @@ def delete_user_admin(message):
             eliminar_usuario_db(target_id)
 
 # ==========================================
-# # PARTE 4: COMANDOS PГъBLICOS, MANEJADOR DE BOTONES INLINE CONGELADO INTEGRO Y INFINITY POLLING
+# PARTE 4: COMANDOS PГъBLICOS, MANEJADOR DE BOTONES INLINE CONGELADO INTEGRO Y INFINITY POLLING
 # ==========================================
 @bot.message_handler(commands=['register'])
 def register_user(message):
@@ -393,13 +393,13 @@ def register_user(message):
     tg_username = message.from_user.username or 'Usuario'
     args = message.text.split()
     if verificar_registro(user_id):
-        bot.reply_to(message, "рџ’° Ya estГЎs registrado.")
+        bot.reply_to(message, "\U0001F911 Ya estГЎs registrado.")
         return
     if len(args) < 2: 
         return
     alias_deseado = args[-1]
     registrar_usuario_manual(user_id, alias_deseado, tg_username)
-    bot.reply_to(message, f"рџ”‰ <b>ВЎREGISTRO COMPLETADO!</b>\nрџ‘¤ Bienvenido: <code>{alias_deseado}</code>", parse_mode="HTML")
+    bot.reply_to(message, f"\U0001F509 <b>В¡REGISTRO COMPLETADO!</b>\n\U0001F451 Bienvenido: <code>{alias_deseado}</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['credits', 'bal'])
 def show_credits(message):
@@ -407,7 +407,7 @@ def show_credits(message):
     if not datos: 
         return
     alias, creditos, rango = datos[0], datos[1], datos[2]
-    bot.reply_to(message, f"рџ‘¤ <b>CUENTA</b>\nрџ‘¤ Alias: <code>{alias}</code>\nрџ’° Saldo: <code>{creditos}</code> crГ©ditos\nрџ”° Rango: <b>{rango}</b>", parse_mode="HTML")
+    bot.reply_to(message, f"\U0001F451 <b>CUENTA</b>\n\U0001F451 Alias: <code>{alias}</code>\n\U0001F911 Saldo: <code>{creditos}</code> crГ©ditos\n\U0001F531 Rango: <b>{rango}</b>", parse_mode="HTML")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -415,12 +415,12 @@ def send_welcome(message):
     if datos:
         alias, creditos, rango = datos[0], datos[1], datos[2]
         markup = InlineKeyboardMarkup()
-        btn_comandos = InlineKeyboardButton("рџ“‘ Ver Herramientas", callback_data="abrir_menu_comandos")
-        btn_recargar = InlineKeyboardButton("рџ’І Comprar CrГ©ditos", callback_data="abrir_menu_recargar")
+        btn_comandos = InlineKeyboardButton("\U0001F4D1 Ver Herramientas", callback_data="abrir_menu_comandos")
+        btn_recargar = InlineKeyboardButton("\U0001F911 Comprar CrГ©ditos", callback_data="abrir_menu_recargar")
         markup.add(btn_comandos, btn_recargar)
-        bot.reply_to(message, f"рџ‘‹ <b>В¡Hola de nuevo, {alias}!</b>\n\nрџ‘¤ Bienvenido a la central de simulaciГіn.\nрџ’° Saldo: <code>{creditos}</code> crГ©ditos\nрџ”° Rango: <code>{rango}</code>\n\nрџ‘‡ <i>Selecciona una opciГіn del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
+        bot.reply_to(message, f"\U0001F44B <b>В¡Hola de nuevo, {alias}!</b>\n\n\U0001F451 Bienvenido a la central de simulaciГіn.\n\U0001F911 Saldo: <code>{creditos}</code> crГ©ditos\n\U0001F531 Rango: <code>{rango}</code>\n\n\U0001F447 <i>Selecciona una opciГіn del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
     else:
-        bot.reply_to(message, "рџ‘‹ <b>В¡BIENVENIDO!</b>\nрџЄЉ RegГ­strate con: <code>/register tu_nombre</code>", parse_mode="HTML")
+        bot.reply_to(message, "\U0001F44B <b>В¡BIENVENIDO!</b>\n\U0001F45B RegГ­strate con: <code>/register tu_nombre</code>", parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_listener_buttons(call):
@@ -439,13 +439,13 @@ def callback_listener_buttons(call):
 def show_public_commands(message):
     if not verificar_registro(message.from_user.id): 
         return
-    bot.reply_to(message, "рџ“‘ <b>HERRAMIENTAS</b>\nв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\nрџ—ј <code>/chk CARD</code>\nрџ’° <code>/gen BIN</code>\nрџ”° <code>/bin BIN</code>\nрџ’° <code>/credits</code>\nрџ’І <code>/recargar</code>\nрџ“‘ <code>/soporte TU_MENSAJE</code>", parse_mode="HTML")
+    bot.reply_to(message, "\U0001F4D1 <b>HERRAMIENTAS</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\U0001F4ED <code>/chk CARD</code>\n\U0001F911 <code>/gen BIN</code>\n\U0001F531 <code>/bin BIN</code>\n\U0001F911 <code>/credits</code>\n\U0001F911 <code>/recargar</code>\n\U0001F4D1 <code>/soporte TU_MENSAJE</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['recargar', 'buy'])
 def dual_recharge_menu(message):
     if not verificar_registro(message.from_user.id): 
         return
-    bot.reply_to(message, f"рџ’І <b>PASARELA MULTIPAGO</b>\nвЂў Bizum al: <code>600123456</code>\nвЂў Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
+    bot.reply_to(message, f"\U0001F911 <b>PASARELA MULTIPAGO</b>\n\u25C8 Bizum al: <code>600123456</code>\n\u2753 Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
 
 @bot.message_handler(commands=['soporte', 'contact'])
 def contact_support_team(message):
@@ -455,18 +455,18 @@ def contact_support_team(message):
     if not datos_usuario: 
         return
     if len(args) < 2:
-        bot.reply_to(message, "рџ—ј <b>Uso correcto:</b> <code>/soporte Tu mensaje aquГ­</code>", parse_mode="HTML")
+        bot.reply_to(message, "\U0001F4ED <b>Uso correcto:</b> <code>/soporte Tu mensaje aquГ­</code>", parse_mode="HTML")
         return
     mensaje_soporte = args[-1]
     alias = datos_usuario[0]
-    bot.reply_to(message, "рџ“› <b>В¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
+    bot.reply_to(message, "\U0001F4F9 <b>В¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
     
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
-    texto_soporte_staff = f"рџ“© <b>В¡NUEVO TICKET DE SOPORTE!</b>\nв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\nрџ‘¤ Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\nрџ’¬ {mensaje_soporte}"
+    texto_soporte_staff = f"\U0001F4F0 <b>В¡NUEVO TICKET DE SOPORTE!</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\U0001F451 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n\U0001F91C {mensaje_soporte}"
     try: 
         bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
     except Exception as e:
-        print(f"рџљЁ Error en vivo de la API de Telegram al enviar /soporte al canal STAFF: {e}")
+        print(f"\U0001F6A8 Error en vivo de la API de Telegram al enviar /soporte al canal STAFF: {e}")
 
 @bot.message_handler(commands=['claim_bizum'])
 def claim_bizum_ticket(message):
@@ -478,25 +478,25 @@ def claim_bizum_ticket(message):
     codigo_operacion = args[-1]
     chat_origen_exacto = message.chat.id
     alias = datos_usuario[0]
-    bot.reply_to(message, "вЏ± Ticket enviado al Staff... Esperando verificaciГіn bancaria.")
+    bot.reply_to(message, "\u23F3 Ticket enviado al Staff... Esperando verificaciГіn bancaria.")
     
     grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
     texto_alerta_admin = (
-        f"рџљЁ <b>BIZUM RECIBIDO</b>\nв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\n"
-        f"рџ‘¤ Cliente: {alias} (ID: <code>{user_id}</code>)\n"
-        f"рџ—“ Ticket: <code>{codigo_operacion}</code>\n"
-        f"рџ“‹ Chat Origen: <code>{chat_origen_exacto}</code>\nв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\n"
-        f"рџ’‰ <b>Copiar resoluciГіn:</b>\n"
-        f"вњ… <code>/aprobar_bizum {user_id} 100 {chat_origen_exacto}</code>\n"
-        f"рџ’° <code>/rechazar_bizum {user_id} {chat_origen_exacto}</code>"
+        f"\U0001F6A8 <b>BIZUM RECIBIDO</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+        f"\U0001F451 Cliente: {alias} (ID: <code>{user_id}</code>)\n"
+        f"\U0001F4F6 Ticket: <code>{codigo_operacion}</code>\n"
+        f"\U0001F4F0 Chat Origen: <code>{chat_origen_exacto}</code>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+        f"\U0001F449 <b>Copiar resoluciГіn:</b>\n"
+        f"\u2705 <code>/aprobar_bizum {user_id} 100 {chat_origen_exacto}</code>\n"
+        f"\U0001F911 <code>/rechazar_bizum {user_id} {chat_origen_exacto}</code>"
     )
     try: 
         bot.send_message(grupo_staff_privado, texto_alerta_admin, parse_mode="HTML")
     except Exception as e:
-        print(f"рџљЁ Error en vivo de la API de Telegram al enviar /claim_bizum al canal STAFF: {e}")
+        print(f"\U0001F6A8 Error en vivo de la API de Telegram al enviar /claim_bizum al canal STAFF: {e}")
 
 # ==========================================
-# # NUEVA LГ“GICA REAL: GATEWAY STRIPE Y CHECKER PROFESIONAL (CORREGIDO)
+# NUEVA LГ“GICA REAL: GATEWAY STRIPE Y CHECKER PROFESIONAL (CORREGIDO)
 # ==========================================
 
 class RealCardGateway:
@@ -519,7 +519,7 @@ class RealCardGateway:
                 data = resp.json()
                 bank = data.get('bank', {})
                 country = data.get('country', {})
-                flag = country.get('emoji', 'рџЊЌ')
+                flag = country.get('emoji', '\U0001F30D')
                 bank_name = bank.get('name', 'Desconocido')
                 
                 brand = "Visa" if bin_number.startswith('4') else "Mastercard"
@@ -536,7 +536,7 @@ class RealCardGateway:
             pass
         
         brand = "Visa" if bin_number.startswith('4') else "Mastercard"
-        return {"brand": brand, "type": "Credit", "bank": "Banco Externo", "country": "Global", "flag": "рџЊЌ"}
+        return {"brand": brand, "type": "Credit", "bank": "Banco Externo", "country": "Global", "flag": "\U0001F30D"}
 
     def check_card_live(self, cc, mes, ano, cvv):
         """
@@ -634,11 +634,11 @@ def generate_cards(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "рџ’° Uso correcto: /gen 400022")
+            bot.reply_to(message, "\U0001F911 Uso correcto: /gen 400022")
             return
         bin_number = "".join(bin_match)[:6]
         if len(bin_number) < 6:
-            bot.reply_to(message, "рџљ« рџ—їрџЊЂ El BIN debe tener al menos 6 digitos.")
+            bot.reply_to(message, "\U0001F6D1 \U0001F911 El BIN debe tener al menos 6 digitos.")
             return
         bin_base = bin_number
         generated_list = []
@@ -656,9 +656,9 @@ def generate_cards(message):
                     break
         cards_output = "\n".join(generated_list)
         creditos_actuales = get_user_credits(message.from_user.id)
-        bot.reply_to(message, f"рџ’° Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {creditos_actuales} creditos.")
+        bot.reply_to(message, f"\U0001F911 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {creditos_actuales} creditos.")
     except Exception as e: 
-        bot.reply_to(message, f"рџљ« рџ—їрџЊЂ Error al generar: {str(e)}")
+        bot.reply_to(message, f"\U0001F6D1 \U0001F911 Error al generar: {str(e)}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]bin')
 def check_bin_standalone(message):
@@ -668,7 +668,7 @@ def check_bin_standalone(message):
         input_data = message.text
         bin_match = re.findall(r'\d+', input_data)
         if not bin_match:
-            bot.reply_to(message, "рџ’° Uso correcto: /bin 400022")
+            bot.reply_to(message, "\U0001F911 Uso correcto: /bin 400022")
             return
         bin_number = "".join(bin_match)[:6]
         bot.send_chat_action(message.chat.id, 'typing')
@@ -682,32 +682,32 @@ def check_bin_standalone(message):
         card_type = bin_data.get("type", "Credit")
         bank_name = bin_data.get("bank", "Desconocido")
         country_name = bin_data.get("country", "Global")
-        flag = bin_data.get("flag", "рџЊЌ")
+        flag = bin_data.get("flag", "\U0001F30D")
 
         creditos_actuales = get_user_credits(message.from_user.id)
-        bot.reply_to(message, f"рџ”° BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {creditos_actuales}.")
+        bot.reply_to(message, f"\U0001F531 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {creditos_actuales}.")
     except Exception as e: 
-        bot.reply_to(message, f"рџљ« рџ—їрџЊЂ Error: {str(e)}")
+        bot.reply_to(message, f"\U0001F6D1 \U0001F911 Error: {str(e)}")
 
 @bot.message_handler(regexp=r'(?i)^[!/]chk')
 def check_card(message):
     if not check_user_access(message, cost=1): 
         return
     try:
-        loading_msg = bot.reply_to(message, "рџ”Ћ <b>Conectando con Gateway Real (Stripe)...</b>", parse_mode="HTML")
+        loading_msg = bot.reply_to(message, "\U0001F50D <b>Conectando con Gateway Real (Stripe)...</b>", parse_mode="HTML")
         
         input_data = message.text
         cards = re.findall(r'\d+', input_data)
         
         if len(cards) < 4: 
-            bot.edit_message_text("рџ—ј Uso incorrecto. Formato: /chk CARD|MM|AA|CVV", message.chat.id, loading_msg.message_id)
+            bot.edit_message_text("\U0001F4ED Uso incorrecto. Formato: /chk CARD|MM|AA|CVV", message.chat.id, loading_msg.message_id)
             return
 
         cc, mes, ano, cvv = cards[0], cards[1], cards[2], cards[3]
         
         is_luhn_valid = luhn_check(cc)
         if not is_luhn_valid:
-            bot.edit_message_text("рџ’° <b>DEAD</b> (Luhn Fail - NÃºmero Inexistente)", message.chat.id, loading_msg.message_id, parse_mode="HTML")
+            bot.edit_message_text("\U0001F911 <b>DEAD</b> (Luhn Fail - NÃºmero Inexistente)", message.chat.id, loading_msg.message_id, parse_mode="HTML")
             return
 
         bin_number = cc[:6]
@@ -715,37 +715,37 @@ def check_card(message):
         brand = bin_data.get("brand", "Unknown")
         bank_name = bin_data.get("bank", "Unknown")
         country_name = bin_data.get("country", "Unknown")
-        flag = bin_data.get("flag", "рџЊЌ")
+        flag = bin_data.get("flag", "\U0001F30D")
 
         result = CARD_GATEWAY.check_card_live(cc, mes, ano, cvv)
         
-        status_emoji = "вњ…" if result['status'] == "LIVE" else "рџ’°"
-        status_color = "рџџў" if result['status'] == "LIVE" else "рџ”ґ"
+        status_emoji = "\u2705" if result['status'] == "LIVE" else "\U0001F911"
+        status_color = "\U0001F7E2" if result['status'] == "LIVE" else "\U0001F534"
 
         final_status = status_emoji + " " + result['status'].upper()
         details = result['msg']
 
         resultado_visual = (
-            f"рџ’° <b>RESULTADO DEL CHECKER</b>\n"
-            f"в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\n"
-            f"рџ”Ћ <b>Card:</b> <code>{cc}</code>\n"
-            f"рџ“… <b>Exp:</b> <code>{mes}|{ano}</code>\n"
-            f"рџ”‘ <b>CVV:</b> <code>{cvv}</code>\n"
-            f"в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\n"
+            f"\U0001F911 <b>RESULTADO DEL CHECKER</b>\n"
+            f"\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            f"\U0001F50D <b>Card:</b> <code>{cc}</code>\n"
+            f"\U0001F4C5 <b>Exp:</b> <code>{mes}|{ano}</code>\n"
+            f"\U0001F50F <b>CVV:</b> <code>{cvv}</code>\n"
+            f"\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
             f"{status_color} <b>Estado:</b> {final_status}\n"
-            f"рџЏ·пёЏ <b>Gateway:</b> Stripe API (Real)\n"
-            f"рџЏЇ <b>Franquicia:</b> {brand}\n"
-            f"рџЏ¦ <b>Banco:</b> {bank_name}\n"
-            f"рџ“‹ <b>PaГ­s:</b> {country_name} {flag}\n"
-            f"рџ”Њ <b>Motivo:</b> {details}\n"
-            f"в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ\n"
-            f"рџ‘¤ <b>Tu Saldo:</b> <code>{get_user_credits(message.from_user.id)}</code>"
+            f"\U0001F3F7\uFE0F <b>Gateway:</b> Stripe API (Real)\n"
+            f"\U0001F451 <b>Franquicia:</b> {brand}\n"
+            f"\U0001F3E6 <b>Banco:</b> {bank_name}\n"
+            f"\U0001F4F0 <b>PaГ­s:</b> {country_name} {flag}\n"
+            f"\U0001F53A <b>Motivo:</b> {details}\n"
+            f"\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            f"\U0001F451 <b>Tu Saldo:</b> <code>{get_user_credits(message.from_user.id)}</code>"
         )
 
         bot.edit_message_text(resultado_visual, message.chat.id, loading_msg.message_id, parse_mode="HTML")
 
     except Exception as e: 
-        bot.edit_message_text(f"рџљ« рџ—їрџЊЂ Error en el checker: {str(e)}", message.chat.id, loading_msg.message_id)
+        bot.edit_message_text(f"\U0001F6D1 \U0001F911 Error en el checker: {str(e)}", message.chat.id, loading_msg.message_id)
 
 while True:
     try:
