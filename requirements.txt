@@ -1,0 +1,7 @@
+pyTelegramBotAPI
+pg8000
+fake-useragent
+pyrogram==2.0.106
+TgCrypto
+requests
+stripe
