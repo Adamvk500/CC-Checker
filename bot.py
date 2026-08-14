@@ -65,49 +65,50 @@ def get_db_connection():
  )
 
 def init_db():
- conn = get_db_connection()
- cursor = conn.cursor()
- cursor.execute('''
- CREATE TABLE IF NOT EXISTS usuarios (
- id BIGINT PRIMARY KEY,
- alias_elegido TEXT UNIQUE,
- telegram_username TEXT,
- creditos INTEGER DEFAULT 0,
- rango TEXT DEFAULT 'Gratis',
- ultimo_uso DOUBLE PRECISION DEFAULT 0,
- es_staff INTEGER DEFAULT 0
- )
- ''')
- 
- try: 
- cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_uso DOUBLE PRECISION DEFAULT 0')
- except Exception: 
- pass
- 
- try: 
- cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_staff INTEGER DEFAULT 0')
- except Exception: 
- pass
- 
- cursor.execute('''
- CREATE TABLE IF NOT EXISTS config_servidor (
- clave TEXT PRIMARY KEY,
- valor_id BIGINT
- )
- ''')
- 
- cursor.execute('''
- CREATE TABLE IF NOT EXISTS logs_auditoria (
- id SERIAL PRIMARY KEY,
- fecha_hora TEXT,
- user_id BIGINT,
- alias TEXT,
- comando TEXT
- )
- ''')
- conn.commit()
- cursor.close()
- conn.close()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+     CREATE TABLE IF NOT EXISTS usuarios (
+     id BIGINT PRIMARY KEY,
+     alias_elegido TEXT UNIQUE,
+     telegram_username TEXT,
+     creditos INTEGER DEFAULT 0,
+     rango TEXT DEFAULT 'Gratis',
+     ultimo_uso DOUBLE PRECISION DEFAULT 0,
+     es_staff INTEGER DEFAULT 0
+     )
+     ''')
+    
+    # Corrección: El try/except debe estar indentado dentro de init_db
+    try: 
+        cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_uso DOUBLE PRECISION DEFAULT 0')
+    except Exception: 
+        pass
+    
+    try: 
+        cursor.execute('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_staff INTEGER DEFAULT 0')
+    except Exception: 
+        pass
+    
+    cursor.execute('''
+     CREATE TABLE IF NOT EXISTS config_servidor (
+     clave TEXT PRIMARY KEY,
+     valor_id BIGINT
+     )
+     ''')
+    
+    cursor.execute('''
+     CREATE TABLE IF NOT EXISTS logs_auditoria (
+     id SERIAL PRIMARY KEY,
+     fecha_hora TEXT,
+     user_id BIGINT,
+     alias TEXT,
+     comando TEXT
+     )
+     ''')
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 init_db()
 
